@@ -7,7 +7,45 @@ from __future__ import annotations
 from collections import OrderedDict
 from itertools import count
 
+import sys
 import copy
+
+
+def readUtf8(s:str) -> int:
+    b = s.encode('utf-8')
+    utf8 = 0
+
+    # 1-byte
+    if b[0] & 0x80 == 0:
+        assert(len(b) == 1)
+        utf8 = b[0]
+        return utf8
+    
+    # 2-bytes
+    if b[0] & 0xe0 == 0xc0:
+        assert(len(b) == 2)
+        utf8 = ((b[0] & 0x1f) << 6) + \
+                (b[1] & 0x3f)
+        return utf8
+
+    # 3-bytes
+    if b[0] & 0xf0 == 0xe0:
+        assert(len(b) == 3)
+        utf8 = ((b[0] & 0x0f) << 12) + \
+               ((b[1] & 0x3f) << 6) + \
+                (b[2] & 0x3f)
+        return utf8
+    
+    # 4-bytes
+    if b[0] & 0xf0 == 0xf0:
+        assert(len(b) == 4)
+        utf8 = ((b[0] & 0x07) << 24) + \
+               ((b[1] & 0x3f) << 16) + \
+               ((b[2] & 0x3f) << 8) + \
+                (b[3] & 0x3f)
+        return utf8
+
+    raise ValueError('utf-8 error')
 
 
 class Token(object):
@@ -76,7 +114,7 @@ class Tokenizer(object):
 
         token = self.tokenDict.get(s[self.index], None)
         if token is None:
-            token = Token(Token.CHAR, s[self.index].encode('utf-8'))
+            token = Token(Token.CHAR, readUtf8(s[self.index]))
             token.pos = self.index
             self.index += 1
 
@@ -101,7 +139,8 @@ class Tokenizer(object):
                 token = Token(Token.BACKSLASH, s[self.index+1], self.index)
                 self.index += 2
             else:
-                token = Token(Token.CHAR, s[self.index+1].encode('utf-8'), self.index)
+                token = Token(Token.CHAR, readUtf8(s[self.index+1]))
+                token.pos = self.index
                 self.index += 2
         else:
             token.pos = self.index
@@ -109,6 +148,7 @@ class Tokenizer(object):
 
         self.token = token
         return token
+
 
 class Range(object):
     def __init__(self, ranges:list[tuple], negate=False):
@@ -130,6 +170,7 @@ class Range(object):
             if r[0] <= c <= r[1]:
                 return False
         return True
+
 
 class NFAArc(object):
     """ NFAArc represent the arcs connecting to the nextN States,
@@ -295,7 +336,7 @@ class Thread(object):
                 th._advance(arc.target, threads, filter)
 
             elif arc.type == NFAArc.CHAR and self.pos < len(self.text):
-                if arc.value == self.text[self.pos].encode('utf-8'):
+                if arc.value == readUtf8(self.text[self.pos]):
                     th = self.copy(arc.target, pos=self.pos+1)
                     if arc.target.accept:
                         th.groups = copy.deepcopy(self.groups)
@@ -303,7 +344,7 @@ class Thread(object):
                     threads.append(th)
 
             elif arc.type <= NFAArc.CLASS and self.pos < len(self.text):
-                char = int.from_bytes(self.text[self.pos].encode('utf-8'), byteorder='little')
+                char = readUtf8(self.text[self.pos])
                 if arc.value.match(char):
                     th = self.copy(arc.target, pos=self.pos+1)
                     if arc.target.accept:
@@ -451,7 +492,7 @@ class RegExp(object):
             elif token.type == Token.DOT:
                 a = self.nfa.newState()
                 z = self.nfa.newState()
-                a.appendArc(z, Range([(0, 0x7FFFFFFF)]), NFAArc.CLASS)
+                a.appendArc(z, Range([(0, sys.maxunicode)]), NFAArc.CLASS)
                 self.nextToken()
             elif token.type == Token.BACKSLASH:
                 a = self.nfa.newState()

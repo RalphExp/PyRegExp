@@ -1,7 +1,11 @@
 from re2 import RegExp
+from re2 import readUtf8
 
 
 if __name__ == '__main__':
+    kanji = '私'
+    print(readUtf8(kanji))
+
     re = RegExp('(ab|c+?d)', debug=True)
     g = re.search('ccccccccd')
     print(g)
@@ -48,4 +52,8 @@ if __name__ == '__main__':
 
     re = RegExp('(\\w+)\s*(\\d+)', debug=True)
     g = re.search('hello  1984')
+    print(g)
+
+    re = RegExp('い+', debug=True)
+    g = re.search('私はどうすればいいの？')
     print(g)
