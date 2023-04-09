@@ -8,7 +8,7 @@ from collections import OrderedDict
 from itertools import count
 
 import copy
-import pdb
+
 
 class Token(object):
     END = 0
@@ -47,10 +47,10 @@ class Token(object):
 
 class Tokenizer(object):
     def __init__(self, pattern):
-        self._pat = pattern
-        self._token = None
-        self._index = 0
-        self._tokenDict = {
+        self.pat = pattern
+        self.token = None
+        self.index = 0
+        self.tokenDict = {
             '|': Token(Token.ALTER),
             '(': Token(Token.LPAREN),
             ')': Token(Token.RPAREN),
@@ -68,73 +68,65 @@ class Tokenizer(object):
         }
         self.next()
 
-    @property
-    def index(self):
-        return self._index
-
-    @property
-    def token(self):  
-        return self._token
-    
     def next(self):
-        s = self._pat
-        if self._index == len(s):
-            self._token = Token(Token.END, None, len(s))
-            return self._token
+        s = self.pat
+        if self.index == len(s):
+            self.token = Token(Token.END, None, len(s))
+            return self.token
 
-        token = self._tokenDict.get(s[self._index], None)
+        token = self.tokenDict.get(s[self.index], None)
         if token is None:
-            token = Token(Token.CHAR, s[self._index].encode('utf-8'))
-            token.pos = self._index
-            self._index += 1
+            token = Token(Token.CHAR, s[self.index].encode('utf-8'))
+            token.pos = self.index
+            self.index += 1
 
         elif Token.STAR <= token.type <= Token.QUEST:
-            if self._index + 1 < len(s):
-                next = self._tokenDict.get(s[self.index + 1], None)
+            if self.index + 1 < len(s):
+                next = self.tokenDict.get(s[self.index + 1], None)
                 if next and next.type == Token.QUEST:
                     token.type += 3
-                    token.pos = self._index
-                    self._index += 2
+                    token.pos = self.index
+                    self.index += 2
                 else:
-                    token.pos = self._index
-                    self._index += 1
+                    token.pos = self.index
+                    self.index += 1
             else:
-                token.pos = self._index
-                self._index += 1
+                token.pos = self.index
+                self.index += 1
 
         elif token.type == Token.BACKSLASH:
-            if self._index + 1 == len(s):
+            if self.index + 1 == len(s):
                 raise Exception(f'Invalid escape at pos {self.index-1}')
-            if s[self._index + 1] in ('d', 'D', 'w', 'W', 's', 'S'):
-                token = Token(Token.BACKSLASH, s[self._index+1], self._index)
-                self._index += 2
+            if s[self.index + 1] in ('d', 'D', 'w', 'W', 's', 'S'):
+                token = Token(Token.BACKSLASH, s[self.index+1], self.index)
+                self.index += 2
             else:
-                token = Token(Token.CHAR, s[self._index+1].encode('utf-8'), self._index)
-                self._index += 2
+                token = Token(Token.CHAR, s[self.index+1].encode('utf-8'), self.index)
+                self.index += 2
         else:
-            token.pos = self._index
-            self._index += 1
+            token.pos = self.index
+            self.index += 1
 
-        self._token = token
+        self.token = token
         return token
 
 class Range(object):
     def __init__(self, ranges:list[tuple], negate=False):
-        self._ranges = ranges
-        self._negate = negate
+        self.ranges = ranges
+        self.negate = negate
 
     def __repr__(self) -> str:
-        return str(self._ranges)
+        return str(self.ranges)
 
     def match(self, c):
-        if not self._negate:
-            for r in self._ranges:
+        if not self.negate:
+            for r in self.ranges:
                 if r[0] <= c <= r[1]:
                     return True
             return False
         
         # negation
-        for r in self._ranges:
+        for r in self.ranges:
             if r[0] <= c <= r[1]:
                 return False
         return True
@@ -156,66 +148,34 @@ class NFAArc(object):
     ANCHOR = 5 # ^ matches the beginning, $ matches the end
 
     def __init__(self, target:NFAState, value:str or int, type_):
-        self._type = type_
-        self._value = value
-        self._target = target
-
-    @property
-    def type(self):
-        return self._type
-    
-    @property
-    def value(self):
-        return self._value
-    
-    @property
-    def target(self):
-        return self._target
-    
-    @target.setter
-    def target(self, target):
-        self._target = target
+        self.type = type_
+        self.value = value
+        self.target = target
 
 
 class NFAState(object):
     def __init__(self):
-        self._index = None
-        self._arcs = []
-        self._accept = False
-
-    @property
-    def accept(self):
-        return self._accept
-    
-    @accept.setter
-    def accept(self, value:bool):
-        self._accept = value
-
-    @property
-    def index(self):
-        return self._index
-    
-    @index.setter
-    def index(self, val:int):
-        self._index = val
+        self.index = None
+        self.arcs = []
+        self.accept = False
 
     def appendArc(self, target:NFAState, value, type_):
-        self._arcs.append(NFAArc(target, value, type_))
+        self.arcs.append(NFAArc(target, value, type_))
 
     def appendState(self, target:NFAState):
-        self._arcs += target._arcs
+        self.arcs += target.arcs
 
     def prependArc(self, target:NFAState, value, type_):
-        assert(len(self._arcs) == 1)
-        self._arcs.insert(0, NFAArc(target, value, type_))
+        assert(len(self.arcs) == 1)
+        self.arcs.insert(0, NFAArc(target, value, type_))
 
     def prependState(self, target:NFAState):
-        self._arcs = target._arcs + self._arcs
+        self.arcs = target.arcs + self.arcs
 
     def copy(self, state2):
-        self._arcs = state2._arc
+        self.arcs = state2.arc
         self.accept = state2.accept
-        state2._arc = None
+        state2.arc = None
 
     @staticmethod
     def _closure(state:NFAState, result:list[NFAState], filter:set):
@@ -223,7 +183,7 @@ class NFAState(object):
         an ε transition in DFS order.
         """
         
-        for arc in state._arcs:
+        for arc in state.arcs:
             if arc.type == NFAArc.EPSILON and arc.target not in filter:
                 result.append(arc.target)
                 filter.add(arc.target)
@@ -238,15 +198,15 @@ class NFAState(object):
     
     def __hash__(self):
         # assert(self._index is not None)
-        return self._index
+        return self.index
 
-    def __eq__(self, state):
+    def __eq__(self, state:NFAState):
         # __eq__ can be used to simplify the states
-        if len(self._arcs) != len(state._arcs):
+        if len(self.arcs) != len(state.arcs):
             return False
         
-        for i in range(len(self._arcs)):
-            if self._arcs[i] != state._arcs[i]:
+        for i in range(len(self.arcs)):
+            if self.arcs[i] != state.arcs[i]:
                 return False
         return True
     
@@ -256,10 +216,10 @@ class NFAState(object):
     
 class NFA(object):
     def __init__(self):
-        self._start = None
-        self._end = None
-        self._nodes = []
-        self._groups = 0
+        self.start = None
+        self.end = None
+        self.nodes = []
+        self.groups = 0
     
     def newState(self) -> NFAState:
         state = NFAState()
@@ -269,13 +229,13 @@ class NFA(object):
     
     def dump(self, debug:bool):
         """Dump a graphical representation of the NFA"""
-        todo = [self._start]
+        todo = [self.start]
 
         for i, state in enumerate(todo):
             # set index to the state, index will be used in hashing
             state.index = i
-            if debug: print("  State", i, state is self._end and "(final)" or "")
-            for arc in state._arcs:
+            if debug: print("  State", i, state is self.end and "(final)" or "")
+            for arc in state.arcs:
                 next = arc.target
                 if next in todo:
                     j = todo.index(next)
@@ -297,11 +257,13 @@ class NFA(object):
                     elif arc.type == NFAArc.CHAR:
                         print("    %s -> %d" % (arc.value, j))
                     elif arc.type == NFAArc.CLASS:
-                        if not arc.value._negate:
+                        if not arc.value.negate:
                             print("    %s -> %d" % (arc.value, j))
                         else:
                             print("    ! %s -> %d" % (arc.value, j))
-        if debug: print("")
+
+        if debug:
+            print("")
 
         self._nodes = todo
 
@@ -310,20 +272,20 @@ class Thread(object):
     """ use google re2's BFS matching algorithm
     """
     def __init__(self, id, state, text, pos, groups=None):
-        self._id = id
-        self._state = state
-        self._text = text
-        self._pos = pos
-        self._groups = groups or {0: [pos, None]}
+        self.id = id
+        self.state = state
+        self.text = text
+        self.pos = pos
+        self.groups = groups or {0: [pos, None]}
 
     def _advance(self, state:NFAState, threads:list[Thread], filter:set):
         if state.accept:
-            self._groups = copy.deepcopy(self._groups)
-            self._groups[0][1] = self._pos
+            self.groups = copy.deepcopy(self.groups)
+            self.groups[0][1] = self.pos
             threads.append(self)
             return
 
-        for arc in state._arcs:
+        for arc in state.arcs:
             if arc.target in filter:
                 continue
 
@@ -332,65 +294,51 @@ class Thread(object):
                 th = self.copy(arc.target)
                 th._advance(arc.target, threads, filter)
 
-            elif arc.type == NFAArc.CHAR and self._pos < len(self._text):
-                if arc.value == self._text[self._pos].encode('utf-8'):
-                    th = self.copy(arc.target, pos=self._pos+1)
+            elif arc.type == NFAArc.CHAR and self.pos < len(self.text):
+                if arc.value == self.text[self.pos].encode('utf-8'):
+                    th = self.copy(arc.target, pos=self.pos+1)
                     if arc.target.accept:
-                        th._groups = copy.deepcopy(self._groups)
-                        th._groups[0][1] = self._pos+1
+                        th.groups = copy.deepcopy(self.groups)
+                        th.groups[0][1] = self.pos + 1
                     threads.append(th)
 
-            elif arc.type <= NFAArc.CLASS and self._pos < len(self._text):
-                char = int.from_bytes(self._text[self._pos].encode('utf-8'), byteorder='little')
+            elif arc.type <= NFAArc.CLASS and self.pos < len(self.text):
+                char = int.from_bytes(self.text[self.pos].encode('utf-8'), byteorder='little')
                 if arc.value.match(char):
-                    th = self.copy(arc.target, pos=self._pos+1)
+                    th = self.copy(arc.target, pos=self.pos+1)
                     if arc.target.accept:
-                        th._groups = copy.deepcopy(self._groups)
-                        th._groups[0][1] = self._pos+1
+                        th.groups = copy.deepcopy(self.groups)
+                        th.groups[0][1] = self.pos+1
                     threads.append(th)
 
             elif arc.type == NFAArc.LGROUP:
                 th = self.copy(arc.target)
                 # only record the first occurrence
                 if not th.groups.get(arc.value):
-                    th._groups = copy.deepcopy(self._groups)
-                    th._groups[arc.value] = [self._pos, None]
+                    th.groups = copy.deepcopy(self.groups)
+                    th.groups[arc.value] = [self.pos, None]
                 th._advance(arc.target, threads, filter)
 
             elif arc.type == NFAArc.RGROUP:
-                assert(self._groups[arc.value])
+                assert(self.groups[arc.value])
                 th = self.copy(arc.target)
                 if not th.groups[arc.value][1]:
-                    th._groups = copy.deepcopy(self._groups)
-                    th._groups[arc.value][1] = self._pos
+                    th.groups = copy.deepcopy(self.groups)
+                    th.groups[arc.value][1] = self.pos
                 th._advance(arc.target, threads, filter)
         return threads
 
     def copy(self, state, pos=None) -> Thread:
-        th = Thread(self._id, state, self._text, self._pos, self.groups)
-        if pos: th._pos = pos
+        th = Thread(self.id, state, self.text, self.pos, self.groups)
+        if pos:
+            th.pos = pos
         return th
 
     def advance(self, filter:set) -> list[NFAState]:
         newThreads = []
-        self._advance(self._state, newThreads, filter)
+        self._advance(self.state, newThreads, filter)
         return newThreads
     
-    @property
-    def gid(self):
-        """ generation id, the smaller the id is, the earlier the 
-        thread has been created
-        """
-        return self._id
-
-    @property
-    def groups(self):
-        return self._groups
-
-    @property
-    def state(self):
-        return self._state
-
 
 class RegExp(object):
     """ A simple regular expression using NFA for matching
@@ -403,51 +351,51 @@ class RegExp(object):
         ...
     """
     def __init__(self, pattern:str, debug:bool=False):
-        self._pat = pattern
-        self._debug = debug
-        self._tokenizer = Tokenizer(self._pat)
-        self._nfa = NFA()
-        self._compiled = False
-        self._threads = OrderedDict()
+        self.pat = pattern
+        self.debug = debug
+        self.tokenizer = Tokenizer(self.pat)
+        self.nfa = NFA()
+        self.compiled = False
+        self.threads = OrderedDict()
 
     def getToken(self):
         # getToken get the current token but not consume it
-        return self._tokenizer.token
+        return self.tokenizer.token
 
     def nextToken(self):
         # nextToken consumes the current one and get 
         # the next token from tokenizer
-        return self._tokenizer.next()
+        return self.tokenizer.next()
 
     def modify(self, a, z) -> tuple[NFAState]:
         """ handles STAR/QUEST/PLUS,... etc.
         """
  
-        # invariant property: len(z._arc) == 0
+        # invariant property: len(z.arc) == 0
         # now handle the STAR/PLUS/QUESTION
 
         token = self.getToken()
         if token.type == Token.STAR:
             self.nextToken()
-            z1 = self._nfa.newState()
+            z1 = self.nfa.newState()
             a.appendArc(z1, None, NFAArc.EPSILON)
             z.appendArc(a, None, NFAArc.EPSILON)
             z = z1
         elif token.type == Token.STAR2:
             self.nextToken()
-            z1 = self._nfa.newState()
+            z1 = self.nfa.newState()
             a.prependArc(z1, None, NFAArc.EPSILON)
             z.appendArc(a, None, NFAArc.EPSILON)
             z = z1
         elif token.type == Token.PLUS:
             self.nextToken()
-            z1 = self._nfa.newState()
+            z1 = self.nfa.newState()
             z.appendArc(a, None, NFAArc.EPSILON)
             z.appendArc(z1, None, NFAArc.EPSILON)
             z = z1
         elif token.type == Token.PLUS2:
             self.nextToken()
-            z1 = self._nfa.newState()
+            z1 = self.nfa.newState()
             z.appendArc(z1, None, NFAArc.EPSILON)
             z.appendArc(a, None, NFAArc.EPSILON)
             z = z1
@@ -461,13 +409,13 @@ class RegExp(object):
             return a, z
 
         # not allow ++/**/*+/+*/... etc
-        idx = self._tokenizer.index
+        idx = self.tokenizer.index
         token = self.getToken()
         if token.type in {Token.PLUS, Token.PLUS2, Token.STAR, 
                             Token.STAR2, Token.QUEST, Token.QUEST2}:
             raise Exception(f'Syntax Error at position {idx}')
         
-        assert(len(z._arcs) == 0) 
+        assert(len(z.arcs) == 0) 
         return a, z
 
     def concat(self) -> tuple[NFAState]:
@@ -478,8 +426,8 @@ class RegExp(object):
             token = self.getToken()
             # currently only suport Token.CHAR
             if token.type == Token.LPAREN:
-                self._nfa._groups += 1
-                group = self._nfa._groups
+                self.nfa.groups += 1
+                group = self.nfa.groups
                 self.nextToken() # consume '('
                 a1, z1 = self.alternate()
                 token = self.getToken()
@@ -488,26 +436,26 @@ class RegExp(object):
                 
                 self.nextToken() # consume ')'
                 if a1 is not None:
-                    a = self._nfa.newState()
-                    z = self._nfa.newState()
+                    a = self.nfa.newState()
+                    z = self.nfa.newState()
                     a.appendArc(a1, group, NFAArc.LGROUP)
                     z1.appendArc(z, group, NFAArc.RGROUP)
                 
                 # a1 can be None e.g. 'a()b', if this is the case,
                 # don't do anything, because () can never capture anything
             elif token.type == Token.CHAR:
-                a = self._nfa.newState()
-                z = self._nfa.newState()
+                a = self.nfa.newState()
+                z = self.nfa.newState()
                 a.appendArc(z, token.value, NFAArc.CHAR)
                 self.nextToken()
             elif token.type == Token.DOT:
-                a = self._nfa.newState()
-                z = self._nfa.newState()
+                a = self.nfa.newState()
+                z = self.nfa.newState()
                 a.appendArc(z, Range([(0, 0x7FFFFFFF)]), NFAArc.CLASS)
                 self.nextToken()
             elif token.type == Token.BACKSLASH:
-                a = self._nfa.newState()
-                z = self._nfa.newState()
+                a = self.nfa.newState()
+                z = self.nfa.newState()
                 if token.value == 'd':
                     a.appendArc(z, Range([(48, 57)]), NFAArc.CLASS)
                 elif token.value == 'D':
@@ -521,7 +469,7 @@ class RegExp(object):
                 elif token.value == 'S':
                     a.appendArc(z, Range([(8,10),(13,13),(32,32)], True), NFAArc.CLASS)
                 else:
-                    # never reach here
+                    # currently not support other type of character-class
                     pass
                 self.nextToken()
             else:
@@ -552,8 +500,8 @@ class RegExp(object):
         if token.type != Token.ALTER:
             return a, z
  
-        aa = self._nfa.newState()
-        zz = self._nfa.newState()
+        aa = self.nfa.newState()
+        zz = self.nfa.newState()
 
         while True:
             aa.appendArc(a, None, NFAArc.EPSILON)
@@ -576,38 +524,37 @@ class RegExp(object):
         return aa, zz
 
     def compile(self) -> None:
-        if self._compiled:
+        if self.compiled:
             return
 
-        s = self._pat
+        s = self.pat
         start, end = self.alternate()
-        if self._tokenizer.index != len(s):
+        if self.tokenizer.index != len(s):
             raise Exception(f'Unexpected token: {self.getToken()}')
 
         if start is None:
             assert(end is None)
-            start = self._nfa.newState()
-            end = self._nfa.newState()
+            start = self.nfa.newState()
+            end = self.nfa.newState()
 
         end.accept = True
-        self._nfa._start = start
-        self._nfa._end = end
-        self._nfa.dump(self._debug)
-        self._compiled = True
+        self.nfa.start = start
+        self.nfa.end = end
+        self.nfa.dump(self.debug)
+        self.compiled = True
 
     def addThread(self, text:str, pos:int, filter:set, gen):
-        start = self._nfa._start
-        # states = NFAState.closure(start)
-        threads = []    
+        start = self.nfa.start
+        threads = []
         th = Thread(next(gen), start, text, pos, groups=None)
         threads += th.advance(filter)
         return threads
 
     def search(self, text, pos=0) -> dict:
-        if self._compiled == False:
+        if self.compiled == False:
             self.compile()
 
-        self._threads.clear()
+        self.threads.clear()
         gen = count()
         matchThread = None
         matched = False
@@ -619,10 +566,10 @@ class RegExp(object):
             """
             if th1 is None:
                 return th2
-            if th1.gid < th2.gid:
+            if th1.id < th2.id:
                 return th1
             # when th1.gid == th2.gid alway choose th2,
-            # because th2 is a longer match. if th1.gid > th2.gid,
+            # because th2 is a longer match. if th1.id > th2.id,
             # it means th2 is a earlier matching.
             return th2
 
@@ -630,7 +577,7 @@ class RegExp(object):
             filter = set() # intermediate states
             newThreads = OrderedDict() # result (state, thread)
             matched = False
-            for _, thread in self._threads.items():
+            for _, thread in self.threads.items():
                 threads = thread.advance(filter)
                 for th in threads:
                     if th.state.accept:
@@ -663,62 +610,7 @@ class RegExp(object):
             if len(newThreads) == 0 and matchThread:
                 break
 
-            self._threads = newThreads
+            self.threads = newThreads
             pos += 1
 
-        return matchThread.groups if matchThread is not None else None 
-
-
-######################################
-# Test Cases:
-######################################
-if __name__ == '__main__':
-    re = RegExp('(ab|c+?d)', debug=True)
-    re.compile()
-    g = re.search('ccccccccd')
-    print(g)
-
-    re = RegExp('(a(b*)c(d*e))', debug=True)
-    g = re.search('sssabbbbbbcdddef')
-    print(g)
-
-    re = RegExp('(ab)*', debug=True)
-    g = re.search('ab')
-    print(g)
-
-    re = RegExp('(ab)*?', debug=True)
-    g = re.search('ab')
-    print(g)
-
-    re = RegExp('(ab)+', debug=True)
-    g = re.search('abab')
-    print(g)
-
-    re = RegExp('(ab)+?', debug=True)
-    g = re.search('abab')
-    print(g)
-
-    re = RegExp('a(.*)bc', debug=True)
-    g = re.search('abababc')
-    print(g)
-
-    re = RegExp('a(.*?)b', debug=True)
-    g = re.search('abab')
-    print(g)
-
-    re = RegExp('a(.*)(b)', debug=True)
-    g = re.search('abab')
-    print(g)
-
-    re = RegExp('(a\\|b)', debug=True)
-    g = re.search('a|b')
-    print(g)
-
-    re = RegExp('(\\d+)-(\\d+)-(\\d+)', debug=True)
-    g = re.search('1234-567-890')
-    print(g)
-
-    re = RegExp('(\\w+)\s*(\\d+)', debug=True)
-    g = re.search('hello  1984')
-    print(g)
-
+        return matchThread.groups if matchThread is not None else None
