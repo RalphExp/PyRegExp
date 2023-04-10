@@ -6,12 +6,16 @@ if __name__ == '__main__':
     kanji = '私'
     print(readUtf8(kanji))
 
-    re = RegExp('(ab|c+?d)', debug=True)
-    g = re.search('ccccccccd')
+    re = RegExp('a+b*c*', debug=True)
+    g = re.search('sabbbbbbcdddef')
     print(g)
 
-    re = RegExp('(a(b*)c(d*e))', debug=True)
-    g = re.search('sssabbbbbbcdddef')
+    re = RegExp('(ab)+(cd)+', debug=True)
+    g = re.search('gggababcdef')
+    print(g)
+
+    re = RegExp('(ab|c+?d)', debug=True)
+    g = re.search('ccccccccd')
     print(g)
 
     re = RegExp('(ab)*', debug=True)
@@ -20,10 +24,6 @@ if __name__ == '__main__':
 
     re = RegExp('(ab)*?', debug=True)
     g = re.search('ab')
-    print(g)
-
-    re = RegExp('(ab)+', debug=True)
-    g = re.search('abab')
     print(g)
 
     re = RegExp('(ab)+?', debug=True)
@@ -56,4 +56,8 @@ if __name__ == '__main__':
 
     re = RegExp('い+', debug=True)
     g = re.search('私はどうすればいいの？')
+    print(g)
+
+    re = RegExp('\\u6211+', debug=True)
+    g = re.search('我我我我')
     print(g)

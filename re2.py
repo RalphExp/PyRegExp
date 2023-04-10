@@ -45,8 +45,20 @@ def readUtf8(s:str) -> int:
                 (b[3] & 0x3f)
         return utf8
 
-    raise ValueError('utf-8 error')
+    raise ValueError('Utf-8 error')
 
+def readUnicode(s:str) -> int:
+    if len(s[0:4]) != 4:
+        raise ValueError(f'Unicode format error: {s}')
+    
+    u = 0
+    for i in range(4):
+        u <<= 4
+        if not '0' <= s[i] <= '9':
+            raise ValueError('Unicode format error')
+        u += int(s[i])
+        
+    return u
 
 class Token(object):
     END = 0
@@ -120,7 +132,7 @@ class Tokenizer(object):
 
         elif Token.STAR <= token.type <= Token.QUEST:
             if self.index + 1 < len(s):
-                next = self.tokenDict.get(s[self.index + 1], None)
+                next = self.tokenDict.get(s[self.index+1], None)
                 if next and next.type == Token.QUEST:
                     token.type += 3
                     token.pos = self.index
@@ -135,12 +147,14 @@ class Tokenizer(object):
         elif token.type == Token.BACKSLASH:
             if self.index + 1 == len(s):
                 raise Exception(f'Invalid escape at pos {self.index-1}')
-            if s[self.index + 1] in ('d', 'D', 'w', 'W', 's', 'S'):
+            if s[self.index+1] in ('d', 'D', 'w', 'W', 's', 'S'):
                 token = Token(Token.BACKSLASH, s[self.index+1], self.index)
                 self.index += 2
+            elif s[self.index+1] == 'u':
+                token = Token(Token.CHAR, readUnicode(s[self.index+2:self.index+6]), self.index)
+                self.index += 6
             else:
-                token = Token(Token.CHAR, readUtf8(s[self.index+1]))
-                token.pos = self.index
+                token = Token(Token.CHAR, readUtf8(s[self.index+1]), self.index)
                 self.index += 2
         else:
             token.pos = self.index
