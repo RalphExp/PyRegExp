@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-""" This module provides a simplified version of regular expression
+r""" This module provides a simplified version of regular expression
 matching operations of python're library. It supports both 8-bit and 
 Unicode strings; both the pattern and the strings being processed 
 can contain null bytes and characters outside the US ASCII range.
@@ -11,7 +11,9 @@ The special characters are:
                 Greedy means that it will match as many repetitions as possible.
     "+"      Matches 1 or more (greedy) repetitions of the preceding RE.
     "?"      Matches 0 or 1 (greedy) of the preceding RE.
-    *?,+?,?? Non-greedy versions of the previous three special characters.
+    *?,      Non-greedy versions of the previous three special characters.
+    +?,
+    ??,
     "|"      A|B, creates an RE that will match either A or B.
     (...)    Matches the RE inside the parentheses.
     "\\"     Either escapes special characters or signals a special sequence.
@@ -34,8 +36,6 @@ The special characters are:
                  In string patterns without the ASCII flag, it will match the
                  range of Unicode alphanumeric characters (letters plus digits
                  plus underscore).
-                 With LOCALE, it will match the set [0-9_] plus characters defined
-                 as letters for the current locale.
         \W       Matches the complement of \w.
         \u       Matches unicode characters.
 
@@ -333,6 +333,7 @@ class NFA(object):
                 next = arc.target
                 if next in todo:
                     j = todo.index(next)
+
                     # XXX: there's a trap here, because of the __eq__, 
                     # next may not equal to todo[j], must fix the arc to 
                     # point to the correct state
@@ -450,7 +451,6 @@ class RegExp(object):
         self.tokenizer = Tokenizer(self.pat)
         self.nfa = NFA()
         self.compiled = False
-        self.threads = OrderedDict()
 
     def getToken(self):
         # getToken get the current token but not consume it
@@ -518,7 +518,7 @@ class RegExp(object):
 
         while True:
             token = self.getToken()
-            # currently only suport Token.CHAR
+
             if token.type == Token.LPAREN:
                 self.nfa.groups += 1
                 group = self.nfa.groups
@@ -542,11 +542,13 @@ class RegExp(object):
                 z = self.nfa.newState()
                 a.appendArc(z, token.value, NFAArc.CHAR)
                 self.nextToken()
+
             elif token.type == Token.DOT:
                 a = self.nfa.newState()
                 z = self.nfa.newState()
                 a.appendArc(z, Range([(0, sys.maxunicode)]), NFAArc.CLASS)
                 self.nextToken()
+
             elif token.type == Token.BACKSLASH:
                 a = self.nfa.newState()
                 z = self.nfa.newState()
@@ -566,6 +568,7 @@ class RegExp(object):
                     # currently not support other type of character-class
                     pass
                 self.nextToken()
+
             else:
                 # if we don't capture anything and come across the token
                 # which can not be processed, raise an exception.
@@ -648,34 +651,21 @@ class RegExp(object):
         if self.compiled == False:
             self.compile()
 
-        self.threads.clear()
+        threads = OrderedDict()
         gen = count()
         matchThread = None
         matched = False
-
-        # FIXME: do we really need compare thread ?
-        def compareThread(th1:Thread, th2:Thread):
-            """ we want to choose the longest match,
-            which can be compared by the gid
-            """
-            if th1 is None:
-                return th2
-            if th1.id < th2.id:
-                return th1
-            # when th1.gid == th2.gid alway choose th2,
-            # because th2 is a longer match. if th1.id > th2.id,
-            # it means th2 is a earlier matching.
-            return th2
 
         while pos <= len(text):
             filter = set() # intermediate states
             newThreads = OrderedDict() # result (state, thread)
             matched = False
-            for _, thread in self.threads.items():
+
+            for _, thread in threads.items():
                 threads = thread.advance(filter)
                 for th in threads:
                     if th.state.accept:
-                        matchThread = compareThread(matchThread, th)
+                        matchThread = th
                         # all the thread in threads have the same gid
                         # we don't need to advance any more
                         matched = True
@@ -694,7 +684,7 @@ class RegExp(object):
                 threads = self.addThread(text, pos, filter, gen)
                 for th in threads:
                     if th.state.accept:
-                        matchThread = compareThread(matchThread, th)
+                        matchThread = th
                         # all the thread in threads have the same gid
                         # we don't need to advance any more
                         break
@@ -704,7 +694,7 @@ class RegExp(object):
             if len(newThreads) == 0 and matchThread:
                 break
 
-            self.threads = newThreads
+            threads = newThreads
             pos += 1
 
         return matchThread.groups if matchThread is not None else None
