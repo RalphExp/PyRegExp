@@ -1,6 +1,7 @@
 from re2 import RegExp
 from re2 import readUtf8
 
+import pdb
 
 if __name__ == '__main__':
     kanji = '私'
@@ -60,4 +61,12 @@ if __name__ == '__main__':
 
     re = RegExp('\\u6211+', debug=True)
     g = re.search('我我我我')
+    print(g)
+
+    re = RegExp('[a-z,]+', debug=True)
+    g = re.search('hello, world')
+    print(g)
+
+    re = RegExp('[^a-z]+', debug=True)
+    g = re.search('hello, world')
     print(g)

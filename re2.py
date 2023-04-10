@@ -14,6 +14,7 @@ The special characters are:
     *?,      Non-greedy versions of the previous three special characters.
     +?,
     ??,
+    [...]    character class.
     "|"      A|B, creates an RE that will match either A or B.
     (...)    Matches the RE inside the parentheses.
     "\\"     Either escapes special characters or signals a special sequence.
@@ -48,6 +49,7 @@ from itertools import count
 
 import sys
 import copy
+import typing as t
 
 
 def readUtf8(s:str) -> int:
@@ -120,24 +122,31 @@ class Token(object):
     RBRACE = 16
     CARET = 17
     DOLLAR = 18
+    HYPHEN = 19
     
     tokenName = ['END', 'CHAR', 'DOT', 'ALTER', 'LPAREN', 'RPAREN', 
                  'STAR', 'PLUS', 'QUEST', 'STAR2', 'PLUS2', 'QUEST2',
                  'LBRACK', 'RBRACK', 'BACKSLASH', 'LBRACE', 'RBRACE', 
-                 'CARET', 'DOLLAR']
+                 'CARET', 'DOLLAR', 'HYPHEN']
 
     def __init__(self, type, value=None, pos=None):
         self.type = type
         self.value = value
         self.pos = pos
 
-    def __repr__(self) -> str: 
-        return f'token: type = {self.type}, val = {Token.tokenName[self.type]}, pos = {self.pos}'
+    def __repr__(self) -> str:
+        if self.type == Token.CHAR:
+            return f'token: type = {Token.tokenName[self.type]}, val = {chr(self.value)}, pos = {self.pos}'
+        elif self.type == Token.BACKSLASH:
+            return f'token: type = {Token.tokenName[self.type]}, val = {self.value}, pos = {self.pos}'
+        else:
+            return f'token: type = {Token.tokenName[self.type]}, pos = {self.pos}'
 
 
 class Tokenizer(object):
-    def __init__(self, pattern):
+    def __init__(self, pattern, regexp:RegExp):
         self.pat = pattern
+        self.regexp = regexp
         self.token = None
         self.index = 0
         self.tokenDict = {
@@ -154,7 +163,8 @@ class Tokenizer(object):
             '^': Token(Token.CARET),  # currently not supported
             '$': Token(Token.DOLLAR), # currently not supported
             '.': Token(Token.DOT),
-            '\\': Token(Token.BACKSLASH)
+            '\\': Token(Token.BACKSLASH),
+            '-': Token(Token.HYPHEN)
         }
         self.next()
 
@@ -184,6 +194,7 @@ class Tokenizer(object):
                 token.pos = self.index
                 self.index += 1
 
+        # currently supports \d \D \w \W \s \S \u
         elif token.type == Token.BACKSLASH:
             if self.index + 1 == len(s):
                 raise Exception(f'Invalid escape at pos {self.index-1}')
@@ -191,12 +202,19 @@ class Tokenizer(object):
                 token = Token(Token.BACKSLASH, s[self.index+1], self.index)
                 self.index += 2
             elif s[self.index+1] == 'u':
-                token = Token(Token.CHAR, 
-                        readUnicode(s[self.index+2:self.index+6]), self.index)
+                token = Token(Token.CHAR, readUnicode(s[self.index+2:self.index+6]), self.index)
                 self.index += 6
             else:
                 token = Token(Token.CHAR, readUtf8(s[self.index+1]), self.index)
                 self.index += 2
+
+        # tokenizer can not tell whether the hyphen is
+        # meta character need regexp to tell it.
+        elif token.type == Token.HYPHEN and not self.regexp.inrange:
+            token.type = Token.CHAR
+            token.value = 45 # '-'
+            token.pos = self.index
+            self.index += 1
         else:
             token.pos = self.index
             self.index += 1
@@ -206,8 +224,8 @@ class Tokenizer(object):
 
 
 class Range(object):
-    def __init__(self, ranges:list[tuple], negate=False):
-        self.ranges = ranges
+    def __init__(self, ranges:list[tuple]=None, negate=False):
+        self.ranges = ranges or []
         self.negate = negate
 
     def __repr__(self) -> str:
@@ -232,7 +250,7 @@ class NFAArc(object):
     value is diffent according to different type. if type is 
         1) EPSILON_TYPE, value is None
         2) CHAR_TYPE, value is a single character
-        3) CLASS_TYPE, value is a set
+        3) CLASS_TYPE, value is a Range object
         4) LPAR_TYPE, value is the group number
         5) RPAR_TYPE, value is the group number
     """
@@ -243,7 +261,7 @@ class NFAArc(object):
     RGROUP = 4
     ANCHOR = 5 # ^ matches the beginning, $ matches the end
 
-    def __init__(self, target:NFAState, value:str or int, type_):
+    def __init__(self, target:NFAState, value:t.Union[int, str, Range], type_:int):
         self.type = type_
         self.value = value
         self.target = target
@@ -305,11 +323,8 @@ class NFAState(object):
             if self.arcs[i] != state.arcs[i]:
                 return False
         return True
-    
-    def simplify(self):
-        raise NotImplementedError
 
-    
+
 class NFA(object):
     def __init__(self):
         self.start = None
@@ -424,6 +439,7 @@ class Thread(object):
                     th.groups = copy.deepcopy(self.groups)
                     th.groups[arc.value][1] = self.pos
                 th._advance(arc.target, threads, filter)
+
         return threads
 
     def copy(self, state, pos=None) -> Thread:
@@ -451,9 +467,10 @@ class RegExp(object):
     def __init__(self, pattern:str, debug:bool=False):
         self.pat = pattern
         self.debug = debug
-        self.tokenizer = Tokenizer(self.pat)
+        self.tokenizer = Tokenizer(self.pat, self)
         self.nfa = NFA()
         self.compiled = False
+        self.inrange = False # for hyphen
 
     def getToken(self):
         # getToken get the current token but not consume it
@@ -515,6 +532,56 @@ class RegExp(object):
         assert(len(z.arcs) == 0) 
         return a, z
 
+    def getRange(self) -> Range:
+        # e.g [a-zA-Z0-9_]
+        self.inrange = True
+        self.nextToken()
+        r = Range()
+
+        token = self.getToken()
+        if token.type == Token.CARET:
+            r.negate = True
+            self.nextToken()
+
+        # if hyphen happens at the begin of the range
+        # tolerates it and take it as an character
+        token = self.getToken()
+        if token.type == Token.HYPHEN:
+            token.type = Token.CHAR
+            token.value = 45 # '-'
+
+        while True:
+            token = self.getToken()
+            if token.type != Token.CHAR:
+                raise Exception(f'Unexpected token {token}')
+
+            self.nextToken()
+            token2 = self.getToken()
+            if token2.type == Token.CHAR:
+                r.ranges.append((token.value, token.value))
+                continue
+            elif token2.type == Token.HYPHEN:
+                self.nextToken()
+                token2 = self.getToken()
+                if token2.type == Token.CHAR:
+                    if token.value > token2.value:
+                        # FIXME: not consider it as an error
+                        # just flip the values of the 2 tokens
+                        token.value, token2.value = token2.value, token.value
+                    r.ranges.append((token.value, token2.value))
+                    continue
+                elif token2.type == Token.RBRACK:
+                    # if hyphen happens at the end of the range
+                    # tolerates it and take it as an character
+                    r.ranges.append((45, 45)) # '-' character
+                    break
+            elif token2.type == Token.RBRACK:
+                r.ranges.append((token.value, token.value))
+                break
+
+        self.inrange = False
+        return r
+
     def concat(self) -> tuple[NFAState]:
         aa = None
         zz = None
@@ -550,6 +617,13 @@ class RegExp(object):
                 a = self.nfa.newState()
                 z = self.nfa.newState()
                 a.appendArc(z, Range([(0, sys.maxunicode)]), NFAArc.CLASS)
+                self.nextToken()
+
+            elif token.type == Token.LBRACK:
+                r = self.getRange()
+                a = self.nfa.newState()
+                z = self.nfa.newState()
+                a.appendArc(z, r, NFAArc.CLASS)
                 self.nextToken()
 
             elif token.type == Token.BACKSLASH:
