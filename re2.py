@@ -99,6 +99,7 @@ def readUnicode(s:str) -> int:
         
     return u
 
+
 class Token(object):
     END = 0
     CHAR = 1
@@ -190,7 +191,8 @@ class Tokenizer(object):
                 token = Token(Token.BACKSLASH, s[self.index+1], self.index)
                 self.index += 2
             elif s[self.index+1] == 'u':
-                token = Token(Token.CHAR, readUnicode(s[self.index+2:self.index+6]), self.index)
+                token = Token(Token.CHAR, 
+                        readUnicode(s[self.index+2:self.index+6]), self.index)
                 self.index += 6
             else:
                 token = Token(Token.CHAR, readUtf8(s[self.index+1]), self.index)
@@ -328,7 +330,8 @@ class NFA(object):
         for i, state in enumerate(todo):
             # set index to the state, index will be used in hashing
             state.index = i
-            if debug: print("  State", i, state is self.end and "(final)" or "")
+            if debug: 
+                print("  State", i, state is self.end and "(final)" or "")
             for arc in state.arcs:
                 next = arc.target
                 if next in todo:
@@ -350,7 +353,7 @@ class NFA(object):
                     elif arc.type == NFAArc.RGROUP:
                         print("    ) -> %d" % j)
                     elif arc.type == NFAArc.CHAR:
-                        print("    %s -> %d" % (arc.value, j))
+                        print("    %s -> %d" % (chr(arc.value), j))
                     elif arc.type == NFAArc.CLASS:
                         if not arc.value.negate:
                             print("    %s -> %d" % (arc.value, j))
@@ -403,7 +406,7 @@ class Thread(object):
                     th = self.copy(arc.target, pos=self.pos+1)
                     if arc.target.accept:
                         th.groups = copy.deepcopy(self.groups)
-                        th.groups[0][1] = self.pos+1
+                        th.groups[0][1] = self.pos + 1
                     threads.append(th)
 
             elif arc.type == NFAArc.LGROUP:
@@ -552,18 +555,20 @@ class RegExp(object):
             elif token.type == Token.BACKSLASH:
                 a = self.nfa.newState()
                 z = self.nfa.newState()
-                if token.value == 'd':
+                if token.value == 'b':
+                    a.appendArc(z, 8, NFAArc.CHAR)
+                elif token.value == 'd':
                     a.appendArc(z, Range([(48, 57)]), NFAArc.CLASS)
                 elif token.value == 'D':
                     a.appendArc(z, Range([(48, 57)], True), NFAArc.CLASS)
                 elif token.value == 'w':
-                    a.appendArc(z, Range([(65, 90),(97, 122)]), NFAArc.CLASS)
+                    a.appendArc(z, Range([(65, 90),(97, 122),(95, 95)]), NFAArc.CLASS)
                 elif token.value == 'W':
-                    a.appendArc(z, Range([(65, 90),(97, 122)], True), NFAArc.CLASS)
+                    a.appendArc(z, Range([(65, 90),(97, 122),(95, 95)], True), NFAArc.CLASS)
                 elif token.value == 's':
-                    a.appendArc(z, Range([(8,10),(13,13),(32,32)]), NFAArc.CLASS)
+                    a.appendArc(z, Range([(9, 13),(32, 32)]), NFAArc.CLASS)
                 elif token.value == 'S':
-                    a.appendArc(z, Range([(8,10),(13,13),(32,32)], True), NFAArc.CLASS)
+                    a.appendArc(z, Range([(9, 13),(32, 32)], True), NFAArc.CLASS)
                 else:
                     # currently not support other type of character-class
                     pass
