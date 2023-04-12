@@ -132,9 +132,9 @@ class Token(object):
     
     tokenName = ['END', 'CHAR', 'DOT', 'ALTER', 'LPAREN', 
                  'RPAREN', 'STAR', 'PLUS', 'QUEST', 'STAR2', 
-                 'LBRACE', 'RBRACE', 'PLUS2', 'QUEST2', 'LBRACK', 
-                 'RBRACK', 'BACKSLASH', 'CARET', 
-                 'DOLLAR', 'HYPHEN', 'COMMA']
+                 'PLUS2', 'QUEST2', 'LBRACE', 'RBRACE', 'LBRACK', 
+                 'RBRACK', 'BACKSLASH', 'CARET', 'DOLLAR', 
+                 'HYPHEN', 'COMMA']
 
     def __init__(self, type, value=None, pos=None):
         self.type = type
@@ -346,9 +346,9 @@ class NFA(object):
         # self._nodes.append(state)
         return state
     
-    def serialize(self, debug:bool=False) -> list[NFAState]:
+    def serialize(self, start, debug:bool=False) -> list[NFAState]:
         """ Serialize the NFS states into a list. """
-        todo = [self.start]
+        todo = [start]
 
         for i, state in enumerate(todo):
             # set index to the state, index will be used in hashing
@@ -428,15 +428,15 @@ class NFA(object):
             tuple[NFAState, NFAState]:
         
         # FIXME: this is a really bad implementation,
-        # for implementing {m,n}, copy the NFA fragment m times
+        # To implement {m,n}, just copy the NFA fragment m times
         # and concat them together.
 
         newList = [self.newState() for i in range(len(nfaList))]
 
         for i in range(len(nfaList)):
             # copy the arcs but not copy the index
-            newList[i].arcs = nfaList[i]
-            for j in len(nfaList[i].arcs):
+            newList[i].arcs = nfaList[i].arcs
+            for j in range(len(nfaList[i].arcs)):
                 newList[i].arcs[j].target = newList[nfaList[i].arcs[j].target.index]
 
         return newList[0], newList[z.index]
@@ -550,6 +550,7 @@ class RegExp(object):
             raise Exception(f'invalid repeat value {token}')
 
         def getValue(regexp):
+            nonlocal token
             v = 0
             while True:
                 v *= 10
@@ -564,18 +565,21 @@ class RegExp(object):
                     raise Exception(f'Invalid repeat value from {token}')
                 
         lo = getValue(self)
-        # type {n}
+        token = self.getToken()
+        # repeat: {n}
         if token.type == Token.RBRACE:
+            self.nextToken() # consume '}'
             return lo, lo
         
         if token.type != Token.COMMA:
             raise Exception(f'Unexpected {token}')
+        self.nextToken()
         
-        # type {n,}
+        # repeat: {n,}
         if token.type == Token.RBRACE:
             return lo, None
 
-        # type {m,n}
+        # repeat: {m,n}
         hi = self.getValue()
         if token.type != Token.RBRACE:
             raise Exception(f'Unexpected {token}')
@@ -590,6 +594,8 @@ class RegExp(object):
         
         if (lo, hi) == (0, 0):
             return None, None
+        if (lo, hi) == (1, 1):
+            return a, z
         if (lo, hi, greedy) == (0, 1, True):
             a, z = self.nfa.quest(a, z)
         elif (lo, hi, greedy) == (0, 1, False):
@@ -618,7 +624,7 @@ class RegExp(object):
                         repeats[lo-1][1].appendArc(repeats[i][1])
                     else:
                         repeats[lo-1][1].prependArc(repeats[i][1])
-                z = repeats[hi-1].z
+                z = repeats[hi-1][1]
             else:
                 for i in range(lo-1):
                     if greedy:
@@ -634,6 +640,7 @@ class RegExp(object):
 
             for s in lst: 
                 s.index = None # clear the index
+
         return a, z
 
     def modify(self, a:NFAState, z:NFAState) -> tuple[NFAState, NFAState]:
@@ -663,7 +670,7 @@ class RegExp(object):
             self.nextToken()
             a, z = self.nfa.quest2(a, z)
         elif token.type == Token.LBRACE: # '{' repeat
-            lo, hi = self.getRepeat(a, z)
+            lo, hi = self.getRepeat()
             greedy = token.type != Token.QUEST
             a, z = self.genRepeat(a, z, lo, hi, greedy)
         else:
@@ -673,8 +680,9 @@ class RegExp(object):
         idx = self.tokenizer.index
         token = self.getToken()
         if token.type in {Token.PLUS, Token.PLUS2, Token.STAR, 
-                            Token.STAR2, Token.QUEST, Token.QUEST2}:
-            raise Exception(f'Syntax Error at position {idx}')
+                            Token.STAR2, Token.QUEST, Token.QUEST2, 
+                            Token.LBRACK}:
+            raise Exception(f'Mutiple repeats are now allow: {idx}')
         
         assert(z is None or len(z.arcs) == 0) 
         return a, z
@@ -866,7 +874,7 @@ class RegExp(object):
         end.accept = True
         self.nfa.start = start
         self.nfa.end = end
-        self.nodes = self.nfa.serialize(self.debug)
+        self.nodes = self.nfa.serialize(self.nfa.start, self.debug)
         self.compiled = True
 
     def addThread(self, text:str, pos:int, filter:set, gen):
