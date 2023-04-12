@@ -98,9 +98,13 @@ if __name__ == '__main__':
         g = re.search('abbbbcd')
         print(g)
 
-        re = RegExp('abb?cd', debug=True)
-        g = re.search('abcd')
+        re = RegExp('ab{3,}cd', debug=True)
+        g = re.search('abbbbcd')
         print(g)
+
+        #re = RegExp('abb?cd', debug=True)
+        #g = re.search('abcd')
+        #print(g)
 
     except Exception:
         import traceback

@@ -580,6 +580,7 @@ class RegExp(object):
         # repeat: {n,}
         token = self.nextToken()
         if token.type == Token.RBRACE:
+            self.nextToken()
             return lo, None
 
         # repeat: {m,n}
@@ -632,7 +633,7 @@ class RegExp(object):
                 assert(z is None or len(z.arcs) == 0)
 
             else:
-                for i in range(lo-1):
+                for i in range(lo-2):
                     if greedy:
                         repeats[i][1].appendState(repeats[i+1][0])
                     else:
