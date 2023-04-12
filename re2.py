@@ -14,7 +14,10 @@ The special characters are:
     *?,      Non-greedy versions of the previous three special characters.
     +?,
     ??,
-    [...]    character class.
+    {n}      Repeat n times.
+    {m,n}    Repeat at least m times, at most n times.
+    {n,}     Repeat at least n times.
+    [...]    Character class.
     "|"      A|B, creates an RE that will match either A or B.
     (...)    Matches the RE inside the parentheses.
     "\\"     Either escapes special characters or signals a special sequence.
@@ -40,7 +43,9 @@ The special characters are:
         \W       Matches the complement of \w.
         \u       Matches unicode characters.
 
-For fun only :)
+Still testing ...............
+
+For fun only:)
 """
 
 from __future__ import annotations
@@ -115,19 +120,21 @@ class Token(object):
     STAR2 = 9
     PLUS2 = 10
     QUEST2 = 11
-    LBRACK = 12
-    RBRACK = 13
-    BACKSLASH = 14
-    LBRACE = 15
-    RBRACE = 16
+    LBRACE = 12
+    RBRACE = 13
+    LBRACK = 14
+    RBRACK = 15
+    BACKSLASH = 16
     CARET = 17
     DOLLAR = 18
     HYPHEN = 19
+    COMMA = 20
     
-    tokenName = ['END', 'CHAR', 'DOT', 'ALTER', 'LPAREN', 'RPAREN', 
-                 'STAR', 'PLUS', 'QUEST', 'STAR2', 'PLUS2', 'QUEST2',
-                 'LBRACK', 'RBRACK', 'BACKSLASH', 'LBRACE', 'RBRACE', 
-                 'CARET', 'DOLLAR', 'HYPHEN']
+    tokenName = ['END', 'CHAR', 'DOT', 'ALTER', 'LPAREN', 
+                 'RPAREN', 'STAR', 'PLUS', 'QUEST', 'STAR2', 
+                 'LBRACE', 'RBRACE', 'PLUS2', 'QUEST2', 'LBRACK', 
+                 'RBRACK', 'BACKSLASH', 'CARET', 
+                 'DOLLAR', 'HYPHEN', 'COMMA']
 
     def __init__(self, type, value=None, pos=None):
         self.type = type
@@ -164,7 +171,8 @@ class Tokenizer(object):
             '$': Token(Token.DOLLAR), # currently not supported
             '.': Token(Token.DOT),
             '\\': Token(Token.BACKSLASH),
-            '-': Token(Token.HYPHEN)
+            '-': Token(Token.HYPHEN),
+            ',': Token(Token.COMMA)
         }
         self.next()
 
@@ -338,8 +346,8 @@ class NFA(object):
         # self._nodes.append(state)
         return state
     
-    def dump(self, debug:bool):
-        """Dump a graphical representation of the NFA"""
+    def serialize(self, debug:bool=False) -> list[NFAState]:
+        """ Serialize the NFS states into a list. """
         todo = [self.start]
 
         for i, state in enumerate(todo):
@@ -378,7 +386,60 @@ class NFA(object):
         if debug:
             print("")
 
-        self._nodes = todo
+        return todo
+
+    def star(self, a:NFAState, z:NFAState) -> tuple[NFAState, NFAState]:
+        z1 = self.newState()
+        a.appendArc(z1, None, NFAArc.EPSILON)
+        z.appendArc(a, None, NFAArc.EPSILON)
+        z = z1
+        return a, z
+    
+    def star2(self, a:NFAState, z:NFAState) -> tuple[NFAState, NFAState]:
+        z1 = self.newState()
+        a.prependArc(z1, None, NFAArc.EPSILON)
+        z.appendArc(a, None, NFAArc.EPSILON)
+        z = z1
+        return a, z
+    
+    def plus(self, a:NFAState, z:NFAState) -> tuple[NFAState, NFAState]:
+        z1 = self.newState()
+        z.appendArc(a, None, NFAArc.EPSILON)
+        z.appendArc(z1, None, NFAArc.EPSILON)
+        z = z1
+        return a, z
+    
+    def plus2(self, a:NFAState, z:NFAState) -> tuple[NFAState, NFAState]:
+        z1 = self.newState()
+        z.appendArc(z1, None, NFAArc.EPSILON)
+        z.appendArc(a, None, NFAArc.EPSILON)
+        z = z1
+        return a, z
+
+    def quest(self, a:NFAState, z:NFAState) -> tuple[NFAState, NFAState]:
+        a.appendArc(z, None, NFAArc.EPSILON)
+        return a, z
+
+    def quest2(self, a:NFAState, z:NFAState) -> tuple[NFAState, NFAState]:
+        a.prependArc(z, None, NFAArc.EPSILON)
+        return a, z
+
+    def copyFragment(self, nfaList:list[NFAState], z:NFAState) -> \
+            tuple[NFAState, NFAState]:
+        
+        # FIXME: this is a really bad implementation,
+        # for implementing {m,n}, copy the NFA fragment m times
+        # and concat them together.
+
+        newList = [self.newState() for i in range(len(nfaList))]
+
+        for i in range(len(nfaList)):
+            # copy the arcs but not copy the index
+            newList[i].arcs = nfaList[i]
+            for j in len(nfaList[i].arcs):
+                newList[i].arcs[j].target = newList[nfaList[i].arcs[j].target.index]
+
+        return newList[0], newList[z.index]
 
 
 class Thread(object):
@@ -480,8 +541,90 @@ class RegExp(object):
         # nextToken consumes the current one and get 
         # the next token from tokenizer
         return self.tokenizer.next()
+    
+    def getRepeat(self) -> tuple[int, int]:
+        # currently the hi value is not allowed to be greater than 100.
 
-    def modify(self, a, z) -> tuple[NFAState]:
+        token = self.nextToken() # consume '{'
+        if token.type != Token.CHAR or token.value < 48 or token.value > 57:
+            raise Exception(f'invalid repeat value {token}')
+
+        def getValue(regexp):
+            v = 0
+            while True:
+                v *= 10
+                v += token.value - 48
+                if v >= 100:
+                    raise Exception(f'too much repeat')
+
+                token = regexp.nextToken()
+                if token.type != Token.CHAR:
+                    return v
+                elif token.value < 48 or token.value > 57:
+                    raise Exception(f'Invalid repeat value from {token}')
+                
+        lo = getValue(self)
+        # type {n}
+        if token.type == Token.RBRACE:
+            return lo, lo
+        
+        if token.type != Token.COMMA:
+            raise Exception(f'Unexpected {token}')
+        
+        # type {n,}
+        if token.type == Token.RBRACE:
+            return lo, None
+
+        # type {m,n}
+        hi = self.getValue()
+        if token.type != Token.RBRACE:
+            raise Exception(f'Unexpected {token}')
+        
+        self.nextToken() # consume '}'
+        if lo > hi:
+            raise Exception(f'Invalid repeat value {(lo, hi)}')
+        return lo, hi
+
+    def genRepeat(self, a:NFAState, z:NFAState, 
+                  lo:int, hi:int, greedy:bool) -> tuple[NFAState]:
+        
+        if (lo, hi) == (0, 0):
+            return None, None
+        if (lo, hi, greedy) == (0, 1, True):
+            a, z = self.nfa.quest(a, z)
+        elif (lo, hi, greedy) == (0, 1, False):
+            a, z = self.nfa.quest2(a, z)
+        elif (lo, hi, greedy) == (0, None, True):
+            a, z = self.nfa.star(a, z)
+        elif (lo, hi, greedy) == (0, None, False):
+            a, z = self.nfa.star2(a, z)
+        elif (lo, hi, greedy) == (1, None, True):
+            a, z = self.nfa.plus(a, z)
+        elif (lo, hi, greedy) == (1, None, False):
+            a, z = self.nfa.plus2(a, z)
+        else:
+            lst = self.nfa.serialize(a)
+            repeatNum = hi-1 if hi is not None else lo-1
+            repeats = [a, z] + [ self.nfa.copyFragment(lst, z) for i in range(repeatNum) ]
+
+            if hi is not None:
+                for i in range(hi-1):
+                    repeats[i][1].appendState(repeats[i+1][0])
+                for i in range(lo, hi-1):
+                    repeats[lo-1][1].appendArc(repeats[i][1])
+                z = repeats[hi-1].z
+            else:
+                for i in range(lo-1):
+                    repeats[i][1].appendState(repeats[i+1][0])
+                ah, zh = self.nfa.plus(repeats[lo-1][0], repeats[lo-1][1])
+                repeats[lo-2][1].appendState(ah)
+                z = zh
+
+            for s in lst: 
+                s.index = None # clear the index
+        return a, z
+
+    def modify(self, a:NFAState, z:NFAState) -> tuple[NFAState, NFAState]:
         """ handles STAR/QUEST/PLUS,... etc.
         """
  
@@ -491,34 +634,26 @@ class RegExp(object):
         token = self.getToken()
         if token.type == Token.STAR:
             self.nextToken()
-            z1 = self.nfa.newState()
-            a.appendArc(z1, None, NFAArc.EPSILON)
-            z.appendArc(a, None, NFAArc.EPSILON)
-            z = z1
+            a, z = self.nfa.star(a, z)
         elif token.type == Token.STAR2:
             self.nextToken()
-            z1 = self.nfa.newState()
-            a.prependArc(z1, None, NFAArc.EPSILON)
-            z.appendArc(a, None, NFAArc.EPSILON)
-            z = z1
+            a, z = self.nfa.star2(a, z)
         elif token.type == Token.PLUS:
             self.nextToken()
-            z1 = self.nfa.newState()
-            z.appendArc(a, None, NFAArc.EPSILON)
-            z.appendArc(z1, None, NFAArc.EPSILON)
-            z = z1
+            a, z = self.nfa.plus(a, z)
         elif token.type == Token.PLUS2:
             self.nextToken()
-            z1 = self.nfa.newState()
-            z.appendArc(z1, None, NFAArc.EPSILON)
-            z.appendArc(a, None, NFAArc.EPSILON)
-            z = z1
+            a, z = self.nfa.plus2(a, z)
         elif token.type == Token.QUEST:
             self.nextToken()
-            a.appendArc(z, None, NFAArc.EPSILON)
+            a, z = self.nfa.quest(a, z)
         elif token.type == Token.QUEST2:
             self.nextToken()
-            a.prependArc(z, None, NFAArc.EPSILON)
+            a, z = self.nfa.quest2(a, z)
+        elif token.type == Token.LBRACE: # '{' repeat
+            lo, hi = self.getRepeat(a, z)
+            greedy = token.type != Token.QUEST
+            a, z = self.genRepeat(a, z, lo, hi, greedy)
         else:
             return a, z
 
@@ -529,13 +664,13 @@ class RegExp(object):
                             Token.STAR2, Token.QUEST, Token.QUEST2}:
             raise Exception(f'Syntax Error at position {idx}')
         
-        assert(len(z.arcs) == 0) 
+        assert(z is None or len(z.arcs) == 0) 
         return a, z
-
+    
     def getRange(self) -> Range:
         # e.g [a-zA-Z0-9_]
         self.inrange = True
-        self.nextToken()
+        self.nextToken() # consume '['
         r = Range()
 
         token = self.getToken()
@@ -580,9 +715,10 @@ class RegExp(object):
                 break
 
         self.inrange = False
+        self.nextToken() # consume ']'
         return r
 
-    def concat(self) -> tuple[NFAState]:
+    def concat(self) -> tuple[NFAState, NFAState]:
         aa = None
         zz = None
 
@@ -624,7 +760,6 @@ class RegExp(object):
                 a = self.nfa.newState()
                 z = self.nfa.newState()
                 a.appendArc(z, r, NFAArc.CLASS)
-                self.nextToken()
 
             elif token.type == Token.BACKSLASH:
                 a = self.nfa.newState()
@@ -652,10 +787,13 @@ class RegExp(object):
                 # if we don't capture anything and come across the token
                 # which can not be processed, raise an exception.
                 if token.type != Token.RPAREN and aa is None:
-                    raise Exception(f'unexpected token: {token}')
+                    raise Exception(f'unexpected {token}')
                 break
 
             a, z = self.modify(a, z)
+            if not a:
+                # e.g. (abc){0} is still consider a valid syntax
+                continue
             if not aa:
                 aa = a
                 zz = z
@@ -668,7 +806,7 @@ class RegExp(object):
             return None, None
         return aa, zz
 
-    def alternate(self) -> tuple[NFAState]:
+    def alternate(self) -> tuple[NFAState, NFAState]:
         """ alternate split s into different section delimited by '|'
         """
         a, z = self.concat()
@@ -706,7 +844,7 @@ class RegExp(object):
         s = self.pat
         start, end = self.alternate()
         if self.tokenizer.index != len(s):
-            raise Exception(f'Unexpected token: {self.getToken()}')
+            raise Exception(f'Unexpected {self.getToken()}')
 
         if start is None:
             assert(end is None)
@@ -716,7 +854,7 @@ class RegExp(object):
         end.accept = True
         self.nfa.start = start
         self.nfa.end = end
-        self.nfa.dump(self.debug)
+        self.nodes = self.nfa.serialize(self.debug)
         self.compiled = True
 
     def addThread(self, text:str, pos:int, filter:set, gen):

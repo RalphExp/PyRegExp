@@ -63,7 +63,7 @@ if __name__ == '__main__':
     g = re.search('我我我我')
     print(g)
 
-    re = RegExp('[a-z,]+', debug=True)
+    re = RegExp('[a-z\,]+', debug=True)
     g = re.search('hello, world')
     print(g)
 
