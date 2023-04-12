@@ -605,19 +605,31 @@ class RegExp(object):
         else:
             lst = self.nfa.serialize(a)
             repeatNum = hi-1 if hi is not None else lo-1
-            repeats = [a, z] + [ self.nfa.copyFragment(lst, z) for i in range(repeatNum) ]
+            repeats = [(a, z)] + [ self.nfa.copyFragment(lst, z) for i in range(repeatNum) ]
 
             if hi is not None:
                 for i in range(hi-1):
-                    repeats[i][1].appendState(repeats[i+1][0])
+                    if greedy:
+                        repeats[i][1].appendState(repeats[i+1][0])
+                    else:
+                        repeats[i][1].prependState(repeats[i+1][0])
                 for i in range(lo, hi-1):
-                    repeats[lo-1][1].appendArc(repeats[i][1])
+                    if greedy:
+                        repeats[lo-1][1].appendArc(repeats[i][1])
+                    else:
+                        repeats[lo-1][1].prependArc(repeats[i][1])
                 z = repeats[hi-1].z
             else:
                 for i in range(lo-1):
-                    repeats[i][1].appendState(repeats[i+1][0])
+                    if greedy:
+                        repeats[i][1].appendState(repeats[i+1][0])
+                    else:
+                        repeats[i][1].prependState(repeats[i+1][0])
                 ah, zh = self.nfa.plus(repeats[lo-1][0], repeats[lo-1][1])
-                repeats[lo-2][1].appendState(ah)
+                if greedy:
+                    repeats[lo-2][1].appendState(ah)
+                else:
+                    repeats[lo-2][1].prependState(ah)
                 z = zh
 
             for s in lst: 
