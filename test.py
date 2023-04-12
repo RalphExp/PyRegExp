@@ -86,6 +86,19 @@ if __name__ == '__main__':
         print(g)
 
         re = RegExp('ab{2}cd', debug=True)
+        g = re.search('abbcd')
+        print(g)
+
+        re = RegExp('ab{3,5}cd', debug=True)
+        g = re.search('abbcd')
+        print(g)
+
+        # BUG:
+        re = RegExp('ab{3,5}cd', debug=True)
+        g = re.search('abbbbcd')
+        print(g)
+
+        re = RegExp('abb?cd', debug=True)
         g = re.search('abcd')
         print(g)
 

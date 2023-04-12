@@ -269,7 +269,7 @@ class NFAArc(object):
     RGROUP = 4
     ANCHOR = 5 # ^ matches the beginning, $ matches the end
 
-    def __init__(self, target:NFAState, value:t.Union[int, str, Range], type_:int):
+    def __init__(self, target:NFAState=None, value:t.Union[int, str, Range]=None, type_:int=0):
         self.type = type_
         self.value = value
         self.target = target
@@ -435,8 +435,10 @@ class NFA(object):
 
         for i in range(len(nfaList)):
             # copy the arcs but not copy the index
-            newList[i].arcs = nfaList[i].arcs
+            newList[i].arcs = [NFAArc()] * len(nfaList[i].arcs)
             for j in range(len(nfaList[i].arcs)):
+                newList[i].arcs[j].type = nfaList[i].arcs[j].type
+                newList[i].arcs[j].value = nfaList[i].arcs[j].value
                 newList[i].arcs[j].target = newList[nfaList[i].arcs[j].target.index]
 
         return newList[0], newList[z.index]
@@ -565,22 +567,23 @@ class RegExp(object):
                     raise Exception(f'Invalid repeat value from {token}')
                 
         lo = getValue(self)
-        token = self.getToken()
+
         # repeat: {n}
+        token = self.getToken()
         if token.type == Token.RBRACE:
             self.nextToken() # consume '}'
             return lo, lo
         
         if token.type != Token.COMMA:
             raise Exception(f'Unexpected {token}')
-        self.nextToken()
         
         # repeat: {n,}
+        token = self.nextToken()
         if token.type == Token.RBRACE:
             return lo, None
 
         # repeat: {m,n}
-        hi = self.getValue()
+        hi = getValue(self)
         if token.type != Token.RBRACE:
             raise Exception(f'Unexpected {token}')
         
@@ -619,12 +622,15 @@ class RegExp(object):
                         repeats[i][1].appendState(repeats[i+1][0])
                     else:
                         repeats[i][1].prependState(repeats[i+1][0])
-                for i in range(lo, hi-1):
-                    if greedy:
-                        repeats[lo-1][1].appendArc(repeats[i][1])
-                    else:
-                        repeats[lo-1][1].prependArc(repeats[i][1])
+                if lo < hi:
+                    for i in range(lo, hi):  
+                        if greedy:
+                            repeats[lo-1][1].appendArc(repeats[i][1], None, NFAArc.EPSILON)
+                        else:
+                            repeats[lo-1][1].prependArc(repeats[i][1], None, NFAArc.EPSILON)
                 z = repeats[hi-1][1]
+                assert(z is None or len(z.arcs) == 0)
+
             else:
                 for i in range(lo-1):
                     if greedy:
