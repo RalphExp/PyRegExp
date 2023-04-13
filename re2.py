@@ -455,7 +455,7 @@ class Thread(object):
         self.pos = pos
         self.groups = groups or {0: [pos, None]}
 
-    def _advance(self, threads:list[Thread], filter:set, fromEpsilon:bool) -> None:
+    def _advance(self, threads:list[Thread]) -> None:
         state = self.state
 
         if state.accept:
@@ -465,23 +465,9 @@ class Thread(object):
             return threads
 
         for arc in state.arcs:
-            if arc.target in filter:
-                continue
-
-            # FIXME: need filter here???
-            # consider the following case:
-            # A --a--A
-            #  `--ε--'
-            # we start from the left A and find a letter 'a', if add the
-            # state(2nd A) to the filter, the ε branch will never be 
-            # executed.
-
-            # if fromEpsilon:
-            #     filter.add(arc.target)
-
             if arc.type == NFAArc.EPSILON:
                 th = self.copy(arc.target)
-                th._advance(threads, filter, True)
+                th._advance(threads)
 
             elif arc.type == NFAArc.CHAR and self.pos < len(self.text):
                 if arc.value == readUtf8(self.text[self.pos]):
@@ -506,7 +492,7 @@ class Thread(object):
                 if not th.groups.get(arc.value):
                     th.groups = copy.deepcopy(self.groups)
                     th.groups[arc.value] = [self.pos, None]
-                th._advance(threads, filter, True)
+                th._advance(threads)
 
             elif arc.type == NFAArc.RGROUP:
                 assert(self.groups[arc.value])
@@ -514,7 +500,7 @@ class Thread(object):
                 if not th.groups[arc.value][1]:
                     th.groups = copy.deepcopy(self.groups)
                     th.groups[arc.value][1] = self.pos
-                th._advance(threads, filter, True)
+                th._advance(threads)
 
         return
 
@@ -524,10 +510,9 @@ class Thread(object):
             th.pos = pos
         return th
 
-    def advance(self, filter:set) -> list[NFAState]:
+    def advance(self) -> list[NFAState]:
         newThreads = []
-        fromEpsilon = False
-        self._advance(newThreads, filter, fromEpsilon)
+        self._advance(newThreads)
         return newThreads
     
 
@@ -898,11 +883,11 @@ class RegExp(object):
         self.nodes = self.nfa.serialize(self.nfa.start, self.debug)
         self.compiled = True
 
-    def addThread(self, text:str, pos:int, filter:set, gen):
+    def addThread(self, text:str, pos:int, gen):
         start = self.nfa.start
         threads = []
         th = Thread(next(gen), start, text, pos, groups=None)
-        threads += th.advance(filter)
+        threads += th.advance()
         return threads
 
     def search(self, text, pos=0) -> dict:
@@ -915,12 +900,11 @@ class RegExp(object):
         matched = False
 
         while pos <= len(text):
-            filter = set() # intermediate states
             newThreads = OrderedDict() # result (state, thread)
             matched = False
 
             for _, thread in threads.items():
-                threads = thread.advance(filter)
+                threads = thread.advance()
                 for th in threads:
                     if th.state.accept:
                         matchThread = th
@@ -939,7 +923,7 @@ class RegExp(object):
             
             # try to add new threads at the start state
             if not matchThread:
-                threads = self.addThread(text, pos, filter, gen)
+                threads = self.addThread(text, pos, gen)
                 for th in threads:
                     if th.state.accept:
                         matchThread = th
