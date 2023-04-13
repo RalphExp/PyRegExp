@@ -5,9 +5,6 @@ import pdb
 
 if __name__ == '__main__':
     try:
-        kanji = '私'
-        print(readUtf8(kanji))
-
         re = RegExp('a+b*c*', debug=True)
         g = re.search('sabbbbbbcdddef')
         print(g)
@@ -17,6 +14,7 @@ if __name__ == '__main__':
         print(g)
 
         re = RegExp('(ab|c+?d)', debug=True)
+        re.compile()
         g = re.search('ccccccccd')
         print(g)
 
@@ -72,7 +70,7 @@ if __name__ == '__main__':
         g = re.search('hello, world')
         print(g)
 
-        # pdb.set_trace()
+        # # pdb.set_trace()
         re = RegExp('ab{0}cd', debug=True)
         g = re.search('abcd')
         print(g)
@@ -93,7 +91,6 @@ if __name__ == '__main__':
         g = re.search('abbcd')
         print(g)
 
-        # BUG:
         re = RegExp('ab{3,5}cd', debug=True)
         g = re.search('abbbbcd')
         print(g)
@@ -102,9 +99,9 @@ if __name__ == '__main__':
         g = re.search('abbbbcd')
         print(g)
 
-        #re = RegExp('abb?cd', debug=True)
-        #g = re.search('abcd')
-        #print(g)
+        re = RegExp('abb?cd', debug=True)
+        g = re.search('abcd')
+        print(g)
 
     except Exception:
         import traceback

@@ -53,6 +53,7 @@ from collections import OrderedDict
 from itertools import count
 
 import sys
+import pdb
 import copy
 import typing as t
 
@@ -454,21 +455,33 @@ class Thread(object):
         self.pos = pos
         self.groups = groups or {0: [pos, None]}
 
-    def _advance(self, state:NFAState, threads:list[Thread], filter:set):
+    def _advance(self, threads:list[Thread], filter:set, fromEpsilon:bool) -> None:
+        state = self.state
+
         if state.accept:
             self.groups = copy.deepcopy(self.groups)
             self.groups[0][1] = self.pos
             threads.append(self)
-            return
+            return threads
 
         for arc in state.arcs:
             if arc.target in filter:
                 continue
 
-            filter.add(arc.target)
+            # FIXME: need filter here???
+            # consider the following case:
+            # A --a--A
+            #  `--ε--'
+            # we start from the left A and find a letter 'a', if add the
+            # state(2nd A) to the filter, the ε branch will never be 
+            # executed.
+
+            # if fromEpsilon:
+            #     filter.add(arc.target)
+
             if arc.type == NFAArc.EPSILON:
                 th = self.copy(arc.target)
-                th._advance(arc.target, threads, filter)
+                th._advance(threads, filter, True)
 
             elif arc.type == NFAArc.CHAR and self.pos < len(self.text):
                 if arc.value == readUtf8(self.text[self.pos]):
@@ -478,7 +491,7 @@ class Thread(object):
                         th.groups[0][1] = self.pos + 1
                     threads.append(th)
 
-            elif arc.type <= NFAArc.CLASS and self.pos < len(self.text):
+            elif arc.type == NFAArc.CLASS and self.pos < len(self.text):
                 char = readUtf8(self.text[self.pos])
                 if arc.value.match(char):
                     th = self.copy(arc.target, pos=self.pos+1)
@@ -493,7 +506,7 @@ class Thread(object):
                 if not th.groups.get(arc.value):
                     th.groups = copy.deepcopy(self.groups)
                     th.groups[arc.value] = [self.pos, None]
-                th._advance(arc.target, threads, filter)
+                th._advance(threads, filter, True)
 
             elif arc.type == NFAArc.RGROUP:
                 assert(self.groups[arc.value])
@@ -501,9 +514,9 @@ class Thread(object):
                 if not th.groups[arc.value][1]:
                     th.groups = copy.deepcopy(self.groups)
                     th.groups[arc.value][1] = self.pos
-                th._advance(arc.target, threads, filter)
+                th._advance(threads, filter, True)
 
-        return threads
+        return
 
     def copy(self, state, pos=None) -> Thread:
         th = Thread(self.id, state, self.text, self.pos, self.groups)
@@ -513,7 +526,8 @@ class Thread(object):
 
     def advance(self, filter:set) -> list[NFAState]:
         newThreads = []
-        self._advance(self.state, newThreads, filter)
+        fromEpsilon = False
+        self._advance(newThreads, filter, fromEpsilon)
         return newThreads
     
 
@@ -687,13 +701,13 @@ class RegExp(object):
         idx = self.tokenizer.index
         token = self.getToken()
         if token.type in {Token.PLUS, Token.PLUS2, Token.STAR, 
-                            Token.STAR2, Token.QUEST, Token.QUEST2, 
-                            Token.LBRACK}:
+                          Token.STAR2, Token.QUEST, Token.QUEST2,
+                          Token.LBRACK}:
             raise Exception(f'Mutiple repeats are now allow: {idx}')
         
         assert(z is None or len(z.arcs) == 0) 
         return a, z
-    
+
     def getRange(self) -> Range:
         # e.g [a-zA-Z0-9_]
         self.inrange = True
@@ -760,7 +774,7 @@ class RegExp(object):
                 token = self.getToken()
                 if token.type != Token.RPAREN:
                     raise Exception('Unmatch parenthesis')
-                
+
                 self.nextToken() # consume ')'
                 if a1 is not None:
                     a = self.nfa.newState()
@@ -939,6 +953,14 @@ class RegExp(object):
                 break
 
             threads = newThreads
+
+            print(f'--- pos {pos} ---')
+            for state, th in threads.items():
+                print(f'thread id: {th.id}, state: {state.index}')
+            if matchThread is not None:
+                print(f'match thread: id {matchThread.id}, state: {matchThread.state.index}')
+            print()
+
             pos += 1
 
         return matchThread.groups if matchThread is not None else None
