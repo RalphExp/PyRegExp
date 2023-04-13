@@ -436,13 +436,13 @@ class NFA(object):
 
         for i in range(len(nfaList)):
             # copy the arcs but not copy the index
-            newList[i].arcs = [NFAArc()] * len(nfaList[i].arcs)
+            newList[i].arcs = [NFAArc() for j in range(len(nfaList[i].arcs)) ]
             for j in range(len(nfaList[i].arcs)):
                 newList[i].arcs[j].type = nfaList[i].arcs[j].type
                 newList[i].arcs[j].value = nfaList[i].arcs[j].value
                 newList[i].arcs[j].target = newList[nfaList[i].arcs[j].target.index]
 
-        return newList[0], newList[z.index]
+        return (newList[0], newList[z.index])
 
 
 class Thread(object):
@@ -613,6 +613,7 @@ class RegExp(object):
             a, z = self.nfa.plus2(a, z)
         else:
             lst = self.nfa.serialize(a)
+            print(len(lst))
             repeatNum = hi-1 if hi is not None else lo-1
             repeats = [(a, z)] + [ self.nfa.copyFragment(lst, z) for i in range(repeatNum) ]
 
@@ -630,7 +631,6 @@ class RegExp(object):
                             repeats[lo-1][1].prependArc(repeats[i][1], None, NFAArc.EPSILON)
                 z = repeats[hi-1][1]
                 assert(z is None or len(z.arcs) == 0)
-
             else:
                 for i in range(lo-2):
                     if greedy:
@@ -938,12 +938,12 @@ class RegExp(object):
 
             threads = newThreads
 
-            print(f'--- pos {pos} ---')
-            for state, th in threads.items():
-                print(f'thread id: {th.id}, state: {state.index}')
-            if matchThread is not None:
-                print(f'match thread: id {matchThread.id}, state: {matchThread.state.index}')
-            print()
+            # print(f'--- pos {pos} ---')
+            # for state, th in threads.items():
+            #     print(f'thread id: {th.id}, state: {state.index}')
+            # if matchThread is not None:
+            #     print(f'match thread: id {matchThread.id}, state: {matchThread.state.index}')
+            # print()
 
             pos += 1
 
