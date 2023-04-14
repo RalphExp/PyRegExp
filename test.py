@@ -107,6 +107,10 @@ if __name__ == '__main__':
         g = re.search('aab')
         print(g)
 
+        re = RegExp('(ab)*{3,5}', debug=True)
+        g = re.search('abcdddcddcd')
+        print(g)
+
     except Exception:
         import traceback
         print(traceback.format_exc())

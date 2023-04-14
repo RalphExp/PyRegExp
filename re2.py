@@ -637,13 +637,11 @@ class RegExp(object):
 
             for s in lst: 
                 s.index = None # clear the index
-
         return a, z
 
     def modify(self, a:NFAState, z:NFAState) -> tuple[NFAState, NFAState]:
         """ handles STAR/QUEST/PLUS,... etc.
         """
- 
         # invariant property: len(z.arc) == 0
         # now handle the STAR/PLUS/QUESTION
 
@@ -678,8 +676,8 @@ class RegExp(object):
         token = self.getToken()
         if token.type in {Token.PLUS, Token.PLUS2, Token.STAR, 
                           Token.STAR2, Token.QUEST, Token.QUEST2,
-                          Token.LBRACK}:
-            raise Exception(f'Mutiple repeats are now allow: {idx}')
+                          Token.LBRACE}:
+            raise Exception(f'Mutiple repeats are now allow: {token}')
         
         assert(z is None or len(z.arcs) == 0) 
         return a, z
