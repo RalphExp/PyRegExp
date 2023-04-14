@@ -425,8 +425,7 @@ class NFA(object):
         a.prependArc(z, None, NFAArc.EPSILON)
         return a, z
 
-    def copyFragment(self, nfaList:list[NFAState], z:NFAState) -> \
-            tuple[NFAState, NFAState]:
+    def copyFragment(self, nfaList:list[NFAState], z:NFAState) -> tuple[NFAState, NFAState]:
         
         # FIXME: this is a really bad implementation,
         # To implement {m,n}, just copy the NFA fragment m times
@@ -613,16 +612,12 @@ class RegExp(object):
             a, z = self.nfa.plus2(a, z)
         else:
             lst = self.nfa.serialize(a)
-            print(len(lst))
             repeatNum = hi-1 if hi is not None else lo-1
-            repeats = [(a, z)] + [ self.nfa.copyFragment(lst, z) for i in range(repeatNum) ]
+            repeats = [(a, z)] + [self.nfa.copyFragment(lst, z) for i in range(repeatNum)]
 
             if hi is not None:
                 for i in range(hi-1):
-                    if greedy:
-                        repeats[i][1].appendState(repeats[i+1][0])
-                    else:
-                        repeats[i][1].prependState(repeats[i+1][0])
+                    repeats[i][1].appendState(repeats[i+1][0])
                 if lo < hi:
                     for i in range(lo, hi):  
                         if greedy:
@@ -633,10 +628,7 @@ class RegExp(object):
                 assert(z is None or len(z.arcs) == 0)
             else:
                 for i in range(lo-2):
-                    if greedy:
-                        repeats[i][1].appendState(repeats[i+1][0])
-                    else:
-                        repeats[i][1].prependState(repeats[i+1][0])
+                    repeats[i][1].appendState(repeats[i+1][0])
                 ah, zh = self.nfa.plus(repeats[lo-1][0], repeats[lo-1][1])
                 if greedy:
                     repeats[lo-2][1].appendState(ah)
@@ -790,9 +782,8 @@ class RegExp(object):
             elif token.type == Token.BACKSLASH:
                 a = self.nfa.newState()
                 z = self.nfa.newState()
-                if token.value == 'b':
-                    a.appendArc(z, 8, NFAArc.CHAR)
-                elif token.value == 'd':
+
+                if token.value == 'd':
                     a.appendArc(z, Range([(48, 57)]), NFAArc.CLASS)
                 elif token.value == 'D':
                     a.appendArc(z, Range([(48, 57)], True), NFAArc.CLASS)
