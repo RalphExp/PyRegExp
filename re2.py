@@ -500,7 +500,6 @@ class Thread(object):
                     th.groups = copy.deepcopy(self.groups)
                     th.groups[arc.value][1] = self.pos
                 th._advance(threads)
-
         return
 
     def copy(self, state, pos=None) -> Thread:

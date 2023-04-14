@@ -103,6 +103,10 @@ if __name__ == '__main__':
         g = re.search('abcdddcddcd')
         print(g)
 
+        re = RegExp('a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*', debug=True)
+        g = re.search('aab')
+        print(g)
+
     except Exception:
         import traceback
         print(traceback.format_exc())
