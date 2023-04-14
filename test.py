@@ -107,8 +107,24 @@ if __name__ == '__main__':
         g = re.search('aab')
         print(g)
 
-        re = RegExp('(ab)*{3,5}', debug=True)
+        re = RegExp('((ab)*){3,5}', debug=True)
         g = re.search('abcdddcddcd')
+        print(g)
+
+        re = RegExp('aaabbbccc$', debug=True)
+        g = re.search('aaabbbccc')
+        print(g)
+
+        re = RegExp('^aaabbbccc', debug=True)
+        g = re.search('daaabbbccc')
+        print(g)
+
+        re = RegExp('^aaabbb^ccc', debug=True)
+        g = re.search('aaabbbccc')
+        print(g)
+
+        re = RegExp('^aaabbbccc$', debug=True)
+        g = re.search('aaabbbccc')
         print(g)
 
     except Exception:

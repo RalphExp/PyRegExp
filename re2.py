@@ -14,6 +14,8 @@ The special characters are:
     *?,      Non-greedy versions of the previous three special characters.
     +?,
     ??,
+    ^,       Matches the beginning of the string.
+    $,       Matches the end of the string.
     {n}      Repeat n times.
     {m,n}    Repeat at least m times, at most n times.
     {n,}     Repeat at least n times.
@@ -43,8 +45,6 @@ The special characters are:
         \W       Matches the complement of \w.
         \u       Matches unicode characters.
 
-Still testing ...............
-
 For fun only:)
 """
 
@@ -53,10 +53,8 @@ from collections import OrderedDict
 from itertools import count
 
 import sys
-import pdb
 import copy
 import typing as t
-
 
 def readUtf8(s:str) -> int:
     b = s.encode('utf-8')
@@ -145,7 +143,7 @@ class Token(object):
     def __repr__(self) -> str:
         if self.type == Token.CHAR:
             return f'token: type = {Token.tokenName[self.type]}, val = {chr(self.value)}, pos = {self.pos}'
-        elif self.type == Token.BACKSLASH:
+        elif self.type in (Token.BACKSLASH, Token.CARET, Token.DOLLAR):
             return f'token: type = {Token.tokenName[self.type]}, val = {self.value}, pos = {self.pos}'
         else:
             return f'token: type = {Token.tokenName[self.type]}, pos = {self.pos}'
@@ -168,8 +166,8 @@ class Tokenizer(object):
             '*': Token(Token.STAR),
             '+': Token(Token.PLUS),
             '?': Token(Token.QUEST),
-            '^': Token(Token.CARET),  # currently not supported
-            '$': Token(Token.DOLLAR), # currently not supported
+            '^': Token(Token.CARET),
+            '$': Token(Token.DOLLAR),
             '.': Token(Token.DOT),
             '\\': Token(Token.BACKSLASH),
             '-': Token(Token.HYPHEN),
@@ -252,6 +250,11 @@ class Range(object):
             if r[0] <= c <= r[1]:
                 return False
         return True
+
+
+class NFAAnchor:
+    START = 0
+    END = 1
 
 
 class NFAArc(object):
@@ -376,6 +379,10 @@ class NFA(object):
                         print("    ( -> %d" % j)
                     elif arc.type == NFAArc.RGROUP:
                         print("    ) -> %d" % j)
+                    elif arc.type == NFAArc.ANCHOR and arc.value == 0:
+                        print("    ^ -> %d" % j)
+                    elif arc.type == NFAArc.ANCHOR and arc.value == 1:
+                        print("    $ -> %d" % j)
                     elif arc.type == NFAArc.CHAR:
                         print("    %s -> %d" % (chr(arc.value), j))
                     elif arc.type == NFAArc.CLASS:
@@ -500,6 +507,14 @@ class Thread(object):
                     th.groups = copy.deepcopy(self.groups)
                     th.groups[arc.value][1] = self.pos
                 th._advance(threads)
+
+            elif arc.type == NFAArc.ANCHOR:
+                if arc.value == NFAAnchor.START and self.pos == 0:
+                    th = self.copy(arc.target)
+                    th._advance(threads)
+                elif arc.value == NFAAnchor.END and self.pos == len(self.text):
+                    th = self.copy(arc.target)
+                    th._advance(threads)
         return
 
     def copy(self, state, pos=None) -> Thread:
@@ -556,16 +571,14 @@ class RegExp(object):
                 v += token.value - 48
                 if v >= 100:
                     raise Exception(f'too much repeat')
-
                 token = regexp.nextToken()
                 if token.type != Token.CHAR:
                     return v
                 elif token.value < 48 or token.value > 57:
                     raise Exception(f'Invalid repeat value from {token}')
                 
-        lo = getValue(self)
-
         # repeat: {n}
+        lo = getValue(self)
         token = self.getToken()
         if token.type == Token.RBRACE:
             self.nextToken() # consume '}'
@@ -644,8 +657,14 @@ class RegExp(object):
         """
         # invariant property: len(z.arc) == 0
         # now handle the STAR/PLUS/QUESTION
+        previousToken = self.getToken()
+        token = self.nextToken()
 
-        token = self.getToken()
+        if token.type < Token.STAR or token.type > Token.LBRACE:
+            return a, z
+        if previousToken.type in (Token.CARET, Token.DOLLAR):
+            raise Exception(f'nothing to repeat {token}')
+
         if token.type == Token.STAR:
             self.nextToken()
             a, z = self.nfa.star(a, z)
@@ -668,10 +687,9 @@ class RegExp(object):
             lo, hi = self.getRepeat()
             greedy = token.type != Token.QUEST
             a, z = self.genRepeat(a, z, lo, hi, greedy)
-        else:
-            return a, z
-
+        
         # not allow ++/**/*+/+*/... etc
+        # but you can still use group and modifies it again!
         idx = self.tokenizer.index
         token = self.getToken()
         if token.type in {Token.PLUS, Token.PLUS2, Token.STAR, 
@@ -730,7 +748,6 @@ class RegExp(object):
                 break
 
         self.inrange = False
-        self.nextToken() # consume ']'
         return r
 
     def concat(self) -> tuple[NFAState, NFAState]:
@@ -749,7 +766,6 @@ class RegExp(object):
                 if token.type != Token.RPAREN:
                     raise Exception('Unmatch parenthesis')
 
-                self.nextToken() # consume ')'
                 if a1 is not None:
                     a = self.nfa.newState()
                     z = self.nfa.newState()
@@ -762,19 +778,27 @@ class RegExp(object):
                 a = self.nfa.newState()
                 z = self.nfa.newState()
                 a.appendArc(z, token.value, NFAArc.CHAR)
-                self.nextToken()
 
             elif token.type == Token.DOT:
                 a = self.nfa.newState()
                 z = self.nfa.newState()
                 a.appendArc(z, Range([(0, sys.maxunicode)]), NFAArc.CLASS)
-                self.nextToken()
 
             elif token.type == Token.LBRACK:
                 r = self.getRange()
                 a = self.nfa.newState()
                 z = self.nfa.newState()
                 a.appendArc(z, r, NFAArc.CLASS)
+
+            elif token.type == Token.CARET:
+                a = self.nfa.newState()
+                z = self.nfa.newState()
+                a.appendArc(z, NFAAnchor.START, NFAArc.ANCHOR)
+
+            elif token.type == Token.DOLLAR:
+                a = self.nfa.newState()
+                z = self.nfa.newState()
+                a.appendArc(z, NFAAnchor.END, NFAArc.ANCHOR)
 
             elif token.type == Token.BACKSLASH:
                 a = self.nfa.newState()
@@ -795,8 +819,6 @@ class RegExp(object):
                 else:
                     # currently not support other type of character-class
                     pass
-                self.nextToken()
-
             else:
                 # if we don't capture anything and come across the token
                 # which can not be processed, raise an exception.
