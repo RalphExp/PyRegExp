@@ -127,6 +127,10 @@ if __name__ == '__main__':
         g = re.search('aaabbbccc')
         print(g)
 
+        re = RegExp('(a?)*$', debug=True)
+        g = re.search('aaaa')
+        print(g)
+
     except Exception:
         import traceback
         print(traceback.format_exc())

@@ -267,11 +267,11 @@ class NFAArc(object):
         5) RPAR_TYPE, value is the group number
     """
     EPSILON = 0
-    CHAR = 1
-    CLASS = 2
-    LGROUP = 3
-    RGROUP = 4
-    ANCHOR = 5 # ^ matches the beginning, $ matches the end
+    LGROUP = 1
+    RGROUP = 2
+    ANCHOR = 3
+    CHAR = 4
+    CLASS = 5
 
     def __init__(self, target:NFAState=None, value:t.Union[int, str, Range]=None, type_:int=0):
         self.type = type_
@@ -461,7 +461,7 @@ class Thread(object):
         self.pos = pos
         self.groups = groups or {0: [pos, None]}
 
-    def _advance(self, threads:list[Thread]) -> None:
+    def _advance(self, threads:list[Thread], filter:set) -> None:
         state = self.state
 
         if state.accept:
@@ -471,9 +471,39 @@ class Thread(object):
             return threads
 
         for arc in state.arcs:
+            if arc.target in filter:
+                continue
+
+            if arc.type < NFAArc.CHAR:
+                filter.add(arc.target)
+
             if arc.type == NFAArc.EPSILON:
                 th = self.copy(arc.target)
-                th._advance(threads)
+                th._advance(threads, filter)
+
+            elif arc.type == NFAArc.LGROUP:
+                th = self.copy(arc.target)
+                # only record the first occurrence
+                if not th.groups.get(arc.value):
+                    th.groups = copy.deepcopy(self.groups)
+                    th.groups[arc.value] = [self.pos, None]
+                th._advance(threads, filter)
+
+            elif arc.type == NFAArc.RGROUP:
+                assert(self.groups[arc.value])
+                th = self.copy(arc.target)
+                if not th.groups[arc.value][1]:
+                    th.groups = copy.deepcopy(self.groups)
+                    th.groups[arc.value][1] = self.pos
+                th._advance(threads, filter)
+
+            elif arc.type == NFAArc.ANCHOR:
+                if arc.value == NFAAnchor.START and self.pos == 0:
+                    th = self.copy(arc.target)
+                    th._advance(threads, filter)
+                elif arc.value == NFAAnchor.END and self.pos == len(self.text):
+                    th = self.copy(arc.target)
+                    th._advance(threads, filter)
 
             elif arc.type == NFAArc.CHAR and self.pos < len(self.text):
                 if arc.value == readUtf8(self.text[self.pos]):
@@ -491,30 +521,6 @@ class Thread(object):
                         th.groups = copy.deepcopy(self.groups)
                         th.groups[0][1] = self.pos + 1
                     threads.append(th)
-
-            elif arc.type == NFAArc.LGROUP:
-                th = self.copy(arc.target)
-                # only record the first occurrence
-                if not th.groups.get(arc.value):
-                    th.groups = copy.deepcopy(self.groups)
-                    th.groups[arc.value] = [self.pos, None]
-                th._advance(threads)
-
-            elif arc.type == NFAArc.RGROUP:
-                assert(self.groups[arc.value])
-                th = self.copy(arc.target)
-                if not th.groups[arc.value][1]:
-                    th.groups = copy.deepcopy(self.groups)
-                    th.groups[arc.value][1] = self.pos
-                th._advance(threads)
-
-            elif arc.type == NFAArc.ANCHOR:
-                if arc.value == NFAAnchor.START and self.pos == 0:
-                    th = self.copy(arc.target)
-                    th._advance(threads)
-                elif arc.value == NFAAnchor.END and self.pos == len(self.text):
-                    th = self.copy(arc.target)
-                    th._advance(threads)
         return
 
     def copy(self, state, pos=None) -> Thread:
@@ -525,7 +531,8 @@ class Thread(object):
 
     def advance(self) -> list[NFAState]:
         newThreads = []
-        self._advance(newThreads)
+        filter = set()
+        self._advance(newThreads, filter)
         return newThreads
     
 
