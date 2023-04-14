@@ -925,14 +925,6 @@ class RegExp(object):
                 break
 
             threads = newThreads
-
-            # print(f'--- pos {pos} ---')
-            # for state, th in threads.items():
-            #     print(f'thread id: {th.id}, state: {state.index}')
-            # if matchThread is not None:
-            #     print(f'match thread: id {matchThread.id}, state: {matchThread.state.index}')
-            # print()
-
             pos += 1
 
         return matchThread.groups if matchThread is not None else None
