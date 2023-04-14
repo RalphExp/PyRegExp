@@ -260,11 +260,12 @@ class NFAAnchor:
 class NFAArc(object):
     """ NFAArc represent the arcs connecting to the nextN States,
     value is diffent according to different type. if type is 
-        1) EPSILON_TYPE, value is None
-        2) CHAR_TYPE, value is a single character
-        3) CLASS_TYPE, value is a Range object
-        4) LPAR_TYPE, value is the group number
-        5) RPAR_TYPE, value is the group number
+        0) EPSILON, value is None
+        1) LGROUP, value is the group number
+        2) RGROUP, value is the group number
+        3) ANCHOR, value is NFAAnchor
+        4) CHAR, value is a single character
+        5) CLASS, value is a Range object
     """
     EPSILON = 0
     LGROUP = 1
@@ -474,7 +475,7 @@ class Thread(object):
             if arc.target in filter:
                 continue
 
-            if arc.type < NFAArc.CHAR:
+            if arc.type == NFAArc.EPSILON:
                 filter.add(arc.target)
 
             if arc.type == NFAArc.EPSILON:
