@@ -472,13 +472,22 @@ class Thread(object):
             return threads
 
         for arc in state.arcs:
-            if arc.target in visited:
-                continue
+            if arc.type == NFAArc.CHAR and self.pos < len(self.text):
+                if arc.value == readUtf8(self.text[self.pos]):
+                    th = self.copy(arc.target, pos=self.pos+1)
+                    if arc.target.accept:
+                        th.groups = copy.deepcopy(self.groups)
+                        th.groups[0][1] = self.pos + 1
+                    threads.append(th)
 
-            if arc.type == NFAArc.EPSILON:
-                visited.add(arc.target)
-                th = self.copy(arc.target)
-                th._advance(threads, visited)
+            elif arc.type == NFAArc.CLASS and self.pos < len(self.text):
+                char = readUtf8(self.text[self.pos])
+                if arc.value.match(char):
+                    th = self.copy(arc.target, pos=self.pos+1)
+                    if arc.target.accept:
+                        th.groups = copy.deepcopy(self.groups)
+                        th.groups[0][1] = self.pos + 1
+                    threads.append(th)
 
             elif arc.type == NFAArc.LGROUP:
                 th = self.copy(arc.target)
@@ -504,22 +513,14 @@ class Thread(object):
                     th = self.copy(arc.target)
                     th._advance(threads, visited)
 
-            elif arc.type == NFAArc.CHAR and self.pos < len(self.text):
-                if arc.value == readUtf8(self.text[self.pos]):
-                    th = self.copy(arc.target, pos=self.pos+1)
-                    if arc.target.accept:
-                        th.groups = copy.deepcopy(self.groups)
-                        th.groups[0][1] = self.pos + 1
-                    threads.append(th)
+            elif arc.target in visited:
+                continue
 
-            elif arc.type == NFAArc.CLASS and self.pos < len(self.text):
-                char = readUtf8(self.text[self.pos])
-                if arc.value.match(char):
-                    th = self.copy(arc.target, pos=self.pos+1)
-                    if arc.target.accept:
-                        th.groups = copy.deepcopy(self.groups)
-                        th.groups[0][1] = self.pos + 1
-                    threads.append(th)
+            elif arc.type == NFAArc.EPSILON:
+                visited.add(arc.target)
+                th = self.copy(arc.target)
+                th._advance(threads, visited)
+
         return
 
     def copy(self, state, pos=None) -> Thread:
