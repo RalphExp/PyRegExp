@@ -205,7 +205,7 @@ class Tokenizer(object):
         elif token.type == Token.BACKSLASH:
             if self.index + 1 == len(s):
                 raise Exception(f'Invalid escape at pos {self.index-1}')
-            if s[self.index+1] in ('d', 'D', 'w', 'W', 's', 'S'):
+            if s[self.index+1] in {'b', 'B', 'd', 'D', 'w', 'W', 's', 'S'}:
                 token = Token(Token.BACKSLASH, s[self.index+1], self.index)
                 self.index += 2
             elif s[self.index+1] == 'u':
@@ -255,6 +255,8 @@ class Range(object):
 class NFAAnchor:
     START = 0
     END = 1
+    WBOUND = 2 # word boundary
+    NWBOUND = 3 # non-word boundary
 
 
 class NFAArc(object):
@@ -274,7 +276,8 @@ class NFAArc(object):
     CHAR = 4
     CLASS = 5
 
-    def __init__(self, target:NFAState=None, value:t.Union[int, str, Range]=None, type_:int=0):
+    def __init__(self, target:NFAState=None,
+                 value:t.Union[int, str, Range]=None, type_:int=0):
         self.type = type_
         self.value = value
         self.target = target
@@ -433,23 +436,24 @@ class NFA(object):
         a.prependArc(z, None, NFAArc.EPSILON)
         return a, z
 
-    def copyFragment(self, nfaList:list[NFAState], z:NFAState) -> tuple[NFAState, NFAState]:
+    def copyFragment(self, ol:list[NFAState], z:NFAState) -> \
+            tuple[NFAState, NFAState]:
         
         # FIXME: this is a really bad implementation,
         # To implement {m,n}, just copy the NFA fragment m times
         # and concat them together.
 
-        newList = [self.newState() for i in range(len(nfaList))]
+        nl = [self.newState() for i in range(len(ol))]
 
-        for i in range(len(nfaList)):
+        for i in range(len(ol)):
             # copy the arcs but not copy the index
-            newList[i].arcs = [NFAArc() for j in range(len(nfaList[i].arcs)) ]
-            for j in range(len(nfaList[i].arcs)):
-                newList[i].arcs[j].type = nfaList[i].arcs[j].type
-                newList[i].arcs[j].value = nfaList[i].arcs[j].value
-                newList[i].arcs[j].target = newList[nfaList[i].arcs[j].target.index]
+            nl[i].arcs = [NFAArc() for j in range(len(ol[i].arcs))]
+            for j in range(len(ol[i].arcs)):
+                nl[i].arcs[j].type = ol[i].arcs[j].type
+                nl[i].arcs[j].value = ol[i].arcs[j].value
+                nl[i].arcs[j].target = nl[ol[i].arcs[j].target.index]
 
-        return (newList[0], newList[z.index])
+        return (nl[0], nl[z.index])
 
 
 class Thread(object):
@@ -462,7 +466,7 @@ class Thread(object):
         self.pos = pos
         self.groups = groups or {0: [pos, None]}
 
-    def _advance(self, threads:list[Thread], visited:set) -> None:
+    def _advance(self, threads:list[Thread], visited:set):
         state = self.state
 
         if state.accept:
@@ -625,21 +629,22 @@ class RegExp(object):
         if (lo, hi) == (1, 1):
             return a, z
         if (lo, hi, greedy) == (0, 1, True):
-            a, z = self.nfa.quest(a, z)
+            return self.nfa.quest(a, z)
         elif (lo, hi, greedy) == (0, 1, False):
-            a, z = self.nfa.quest2(a, z)
+            return self.nfa.quest2(a, z)
         elif (lo, hi, greedy) == (0, None, True):
-            a, z = self.nfa.star(a, z)
+            return self.nfa.star(a, z)
         elif (lo, hi, greedy) == (0, None, False):
-            a, z = self.nfa.star2(a, z)
+            return self.nfa.star2(a, z)
         elif (lo, hi, greedy) == (1, None, True):
-            a, z = self.nfa.plus(a, z)
+            return self.nfa.plus(a, z)
         elif (lo, hi, greedy) == (1, None, False):
-            a, z = self.nfa.plus2(a, z)
+            return self.nfa.plus2(a, z)
         else:
             lst = self.nfa.serialize(a)
             repeatNum = hi-1 if hi is not None else lo-1
-            repeats = [(a, z)] + [self.nfa.copyFragment(lst, z) for i in range(repeatNum)]
+            repeats = [(a, z)] + \
+                [self.nfa.copyFragment(lst, z) for i in range(repeatNum)]
 
             if hi is not None:
                 for i in range(hi-1):
@@ -647,9 +652,11 @@ class RegExp(object):
                 if lo < hi:
                     for i in range(lo, hi):  
                         if greedy:
-                            repeats[lo-1][1].appendArc(repeats[i][1], None, NFAArc.EPSILON)
+                            repeats[lo-1][1].appendArc(
+                                repeats[i][1], None, NFAArc.EPSILON)
                         else:
-                            repeats[lo-1][1].prependArc(repeats[i][1], None, NFAArc.EPSILON)
+                            repeats[lo-1][1].prependArc(
+                                repeats[i][1], None, NFAArc.EPSILON)
                 z = repeats[hi-1][1]
                 assert(z is None or len(z.arcs) == 0)
             else:
@@ -703,8 +710,7 @@ class RegExp(object):
             a, z = self.genRepeat(a, z, lo, hi, greedy)
         
         # not allow ++/**/*+/+*/... etc
-        # but you can still use group and modifies it again!
-        idx = self.tokenizer.index
+        # but you can still use group and modifies it again.
         token = self.getToken()
         if token.type in {Token.PLUS, Token.PLUS2, Token.STAR, 
                           Token.STAR2, Token.QUEST, Token.QUEST2,
@@ -818,7 +824,11 @@ class RegExp(object):
                 a = self.nfa.newState()
                 z = self.nfa.newState()
 
-                if token.value == 'd':
+                if token.value == 'b':
+                    a.appendArc(z, NFAAnchor.WBOUND, NFAArc.ANCHOR)
+                elif token.value == 'B':
+                    a.appendArc(z, NFAAnchor.NWBOUND, NFAArc.ANCHOR)
+                elif token.value == 'd':
                     a.appendArc(z, Range([(48, 57)]), NFAArc.CLASS)
                 elif token.value == 'D':
                     a.appendArc(z, Range([(48, 57)], True), NFAArc.CLASS)
