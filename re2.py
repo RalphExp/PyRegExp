@@ -489,7 +489,19 @@ class Thread(object):
                         th.groups[0][1] = self.pos + 1
                     threads.append(th)
 
-            elif arc.type == NFAArc.LGROUP:
+            if arc.target in visited:
+                continue
+            else:
+                # before visit every epsilon transition
+                # add them to the visited set to avoid deadloop
+                # visiting. note that LGROUP,RGROUP are also 
+                # consider to be epsilon transitions!
+                
+                # e.g. consider the case '(a??)*' which there is
+                # a loop in the automata.
+                visited.add(arc.target)
+
+            if arc.type == NFAArc.LGROUP:
                 th = self.copy(arc.target)
                 # only record the first occurrence
                 if not th.groups.get(arc.value):
@@ -513,14 +525,9 @@ class Thread(object):
                     th = self.copy(arc.target)
                     th._advance(threads, visited)
 
-            elif arc.target in visited:
-                continue
-
             elif arc.type == NFAArc.EPSILON:
-                visited.add(arc.target)
                 th = self.copy(arc.target)
                 th._advance(threads, visited)
-
         return
 
     def copy(self, state, pos=None) -> Thread:
@@ -870,8 +877,7 @@ class RegExp(object):
 
             while True:
                 # if multiple '|' shows up, combine them into one
-                self.nextToken()
-                if self.getToken().type != Token.ALTER:
+                if self.nextToken().type != Token.ALTER:
                     break
 
             a, z = self.concat()
@@ -902,9 +908,8 @@ class RegExp(object):
 
     def addThread(self, text:str, pos:int, gen):
         start = self.nfa.start
-        threads = []
         th = Thread(next(gen), start, text, pos, groups=None)
-        threads += th.advance()
+        threads = th.advance()
         return threads
 
     def search(self, text, pos=0) -> dict:
