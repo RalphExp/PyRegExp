@@ -296,7 +296,6 @@ class NFAState(object):
         self.arcs += target.arcs
 
     def prependArc(self, target:NFAState, value, type_):
-        assert(len(self.arcs) == 1)
         self.arcs.insert(0, NFAArc(target, value, type_))
 
     def prependState(self, target:NFAState):
@@ -708,7 +707,12 @@ class RegExp(object):
             a, z = self.nfa.quest2(a, z)
         elif token.type == Token.LBRACE: # '{' repeat
             lo, hi = self.getRepeat()
-            greedy = token.type != Token.QUEST
+            token = self.getToken()
+            if token.type == Token.QUEST:
+                self.nextToken()
+                greedy = True
+            else:
+                greedy = False
             a, z = self.genRepeat(a, z, lo, hi, greedy)
         
         # not allow ++/**/*+/+*/... etc

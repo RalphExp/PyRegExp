@@ -117,6 +117,11 @@ class TestRepeat(unittest.TestCase):
         g = re.search('abbbbcd')
         self.assertEqual(g, {0: [0, 7]})
 
+    def test_multi_repeats4(self):
+        re = RegExp('ab{3,5}?cd')
+        g = re.search('abbbbcd')
+        self.assertEqual(g, {0: [0, 7]})
+
     def test_infinite_repeats(self):
         re = RegExp('ab{3,}cd')
         g = re.search('abbbbbbbcd')
