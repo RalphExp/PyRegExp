@@ -625,6 +625,10 @@ class RegExp(object):
     def genRepeat(self, a:NFAState, z:NFAState, 
                   lo:int, hi:int, greedy:bool) -> tuple[NFAState]:
         
+        # generate the repeat NFA fragments
+        # FIXME: for simplicity, call quest/start/plus functions
+        # for the simple cases.
+
         if (lo, hi) == (0, 0):
             return None, None
         if (lo, hi) == (1, 1):
@@ -663,11 +667,11 @@ class RegExp(object):
             else:
                 for i in range(lo-2):
                     repeats[i][1].appendState(repeats[i+1][0])
-                ah, zh = self.nfa.plus(repeats[lo-1][0], repeats[lo-1][1])
                 if greedy:
-                    repeats[lo-2][1].appendState(ah)
+                    ah, zh = self.nfa.plus(repeats[lo-1][0], repeats[lo-1][1])
                 else:
-                    repeats[lo-2][1].prependState(ah)
+                    ah, zh = self.nfa.plus2(repeats[lo-1][0], repeats[lo-1][1])
+                repeats[lo-2][1].appendState(ah)
                 z = zh
 
             for s in lst: 
@@ -710,9 +714,9 @@ class RegExp(object):
             token = self.getToken()
             if token.type == Token.QUEST:
                 self.nextToken()
-                greedy = True
-            else:
                 greedy = False
+            else:
+                greedy = True
             a, z = self.genRepeat(a, z, lo, hi, greedy)
         
         # not allow ++/**/*+/+*/... etc
@@ -978,14 +982,14 @@ class RegExp(object):
             if len(newThreads) == 0 and matchThread:
                 break
 
-            if self.debug:
-                print(f'--- pos {pos} ---')
-                for state, th in newThreads.items():
-                    print(f'thread id: {th.id}, state: {state.index}')
-                if matchThread is not None:
-                    print(f'match thread: id {matchThread.id}, \
-                          state: {matchThread.state.index}')
-                print()
+            # if self.debug:
+            #     print(f'--- pos {pos} ---')
+            #     for state, th in newThreads.items():
+            #         print(f'thread id: {th.id}, state: {state.index}')
+            #     if matchThread is not None:
+            #         print(f'match thread: id {matchThread.id}, \
+            #               state: {matchThread.state.index}')
+            #     print()
 
             threads = newThreads
             pos += 1
