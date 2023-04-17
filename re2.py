@@ -982,15 +982,6 @@ class RegExp(object):
             if len(newThreads) == 0 and matchThread:
                 break
 
-            # if self.debug:
-            #     print(f'--- pos {pos} ---')
-            #     for state, th in newThreads.items():
-            #         print(f'thread id: {th.id}, state: {state.index}')
-            #     if matchThread is not None:
-            #         print(f'match thread: id {matchThread.id}, \
-            #               state: {matchThread.state.index}')
-            #     print()
-
             threads = newThreads
             pos += 1
 

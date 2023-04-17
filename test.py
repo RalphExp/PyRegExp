@@ -2,10 +2,8 @@ from re2 import RegExp
 from re2 import readUtf8
 
 import unittest
-import pdb
 
 class TestSubstring(unittest.TestCase):
-
     def test_null_pattern(self):
         re = RegExp('')
         g = re.search('abcd')
@@ -28,7 +26,6 @@ class TestSubstring(unittest.TestCase):
 
 
 class TestGroup(unittest.TestCase):
-
     def test_simple_group(self):
         re = RegExp('(ab)')
         g = re.search('AAAabBBB')
@@ -46,7 +43,6 @@ class TestGroup(unittest.TestCase):
 
 
 class TestRepeat(unittest.TestCase):
-
     def test_star(self):
         re = RegExp('(AB)*')
         g = re.search('ababABABcd')
@@ -123,22 +119,22 @@ class TestRepeat(unittest.TestCase):
         self.assertEqual(g, {0: [0, 7]})
 
     def test_multi_repeats5(self):
-        re = RegExp('ab{3,5}', debug=True)
+        re = RegExp('ab{3,5}')
         g = re.search('abbbbb')
         self.assertEqual(g, {0: [0, 6]})
 
     def test_multi_repeats6(self):
-        re = RegExp('ab{3,5}?', debug=True)
+        re = RegExp('ab{3,5}?')
         g = re.search('abbbbb')
         self.assertEqual(g, {0: [0, 4]})
 
     def test_multi_repeats7(self):
-        re = RegExp('ab{3,}', debug=True)
+        re = RegExp('ab{3,}')
         g = re.search('abbbbb')
         self.assertEqual(g, {0: [0, 6]})
 
     def test_multi_repeats8(self):
-        re = RegExp('ab{3,}?', debug=True)
+        re = RegExp('ab{3,}?')
         g = re.search('abbbbb')
         self.assertEqual(g, {0: [0, 4]})
 
@@ -149,15 +145,17 @@ class TestRepeat(unittest.TestCase):
 
 
 class TestAlternation(unittest.TestCase):
-
     def test_simple_alt(self):
         re = RegExp('(ab|c+?d)')
         g = re.search('ccccccccd')
         self.assertEqual(g, {0: [0, 9], 1:[0, 9]})
 
+    def test_multi_alt(self):
+        re = RegExp('(ab|cd|ef)+')
+        g = re.search('abcdef')
+        self.assertEqual(g, {0: [0, 6], 1:[0, 2]})
 
 class TestEscape(unittest.TestCase):
-
     def test_escape_class(self):
         re = RegExp('(\\w+)\s*(\\d+)')
         g = re.search('hello  1984')
@@ -180,7 +178,6 @@ class TestEscape(unittest.TestCase):
 
 
 class TestCharacterClass(unittest.TestCase):
-
     def test_character_class(self):
         re = RegExp('[a-z\,]+')
         g = re.search('hello, world')
@@ -205,7 +202,6 @@ class TestUnicode(unittest.TestCase):
 
 
 class TestAnchor(unittest.TestCase):
-
     def test_anchor_begin(self):
         re = RegExp('^abc')
         g = re.search('dabc')
