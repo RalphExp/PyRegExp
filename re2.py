@@ -483,6 +483,7 @@ class Thread(object):
                         th.groups = copy.deepcopy(self.groups)
                         th.groups[0][1] = self.pos + 1
                     threads.append(th)
+                continue
 
             elif arc.type == NFAArc.CLASS and self.pos < len(self.text):
                 char = readUtf8(self.text[self.pos])
@@ -492,6 +493,7 @@ class Thread(object):
                         th.groups = copy.deepcopy(self.groups)
                         th.groups[0][1] = self.pos + 1
                     threads.append(th)
+                continue
 
             if arc.target in visited:
                 continue
@@ -971,6 +973,15 @@ class RegExp(object):
             
             if len(newThreads) == 0 and matchThread:
                 break
+
+            if self.debug:
+                print(f'--- pos {pos} ---')
+                for state, th in newThreads.items():
+                    print(f'thread id: {th.id}, state: {state.index}')
+                if matchThread is not None:
+                    print(f'match thread: id {matchThread.id}, \
+                          state: {matchThread.state.index}')
+                print()
 
             threads = newThreads
             pos += 1
