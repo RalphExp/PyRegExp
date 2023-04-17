@@ -843,6 +843,9 @@ class RegExp(object):
                 else:
                     # currently not support other type of character-class
                     pass
+            elif token.type == Token.END:
+                # null string...
+                break
             else:
                 # if we don't capture anything and come across the token
                 # which can not be processed, raise an exception.
@@ -899,7 +902,7 @@ class RegExp(object):
     def compile(self) -> None:
         if self.compiled:
             return
-
+        
         s = self.pat
         start, end = self.alternate()
         if self.tokenizer.index != len(s):
@@ -909,6 +912,7 @@ class RegExp(object):
             assert(end is None)
             start = self.nfa.newState()
             end = self.nfa.newState()
+            start.appendArc(end, None, NFAArc.EPSILON)
 
         end.accept = True
         self.nfa.start = start
