@@ -113,7 +113,7 @@ class TestRepeat(unittest.TestCase):
         self.assertIsNone(g)
 
     def test_multi_repeats3(self):
-        re = RegExp('ab{3,5}cd', debug=True)
+        re = RegExp('ab{3,5}cd')
         g = re.search('abbbbcd')
         self.assertEqual(g, {0: [0, 7]})
 
@@ -209,6 +209,3 @@ class TestAnchor(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-    # re = RegExp('ab{3,5}cd', debug=True)
-    # g = re.search('abbbbcd')
-    # print(g)
