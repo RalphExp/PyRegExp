@@ -465,16 +465,19 @@ class Thread(object):
         self.pos = pos
         self.groups = groups or {0: [pos, None]}
 
-    def _advance(self, threads:list[Thread], visited:set):
+    def _advance(self, threads:list[Thread], visited:set) -> None:
         state = self.state
 
         if state.accept:
             self.groups = copy.deepcopy(self.groups)
             self.groups[0][1] = self.pos
             threads.append(self)
-            return threads
+            return
 
         for arc in state.arcs:
+            if len(threads) > 0 and threads[-1].state.accept:
+                return
+
             if arc.type == NFAArc.CHAR and self.pos < len(self.text):
                 if arc.value == readUtf8(self.text[self.pos]):
                     th = self.copy(arc.target, pos=self.pos+1)
