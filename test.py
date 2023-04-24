@@ -143,6 +143,11 @@ class TestRepeat(unittest.TestCase):
         g = re.search('abbbbbbbcd')
         self.assertEqual(g, {0: [0, 10]})
 
+    def test_complex_pattern(self):
+        re = RegExp('(a*b*c*|a*d*)*')
+        g = re.search('adadad')
+        self.assertEqual(g, {0: [0, 6], 1: [0, 1]})
+
 
 class TestAlternation(unittest.TestCase):
     def test_simple_alt(self):
