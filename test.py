@@ -1,6 +1,7 @@
 from re2 import RegExp
 from re2 import readUtf8
 
+import coverage
 import unittest
 
 class TestSubstring(unittest.TestCase):
@@ -234,4 +235,9 @@ class TestAnchor(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    unittest.main()
+    cov = coverage.coverage(branch=True, include='re2.py')
+    cov.start()
+    unittest.main(exit=False)
+    cov.stop()
+    cov.save()
+    cov.report()
