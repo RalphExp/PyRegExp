@@ -1,5 +1,6 @@
 <img alt="Python3" src="https://img.shields.io/badge/Language-Python3-blueviolet">
-<img alt="License" src="https://img.shields.io/badge/License-Apache-2.0-green">  
+<img alt="License" src="https://img.shields.io/badge/License-Apache--2.0-green">
+<img alt="Version" src="https://img.shields.io/badge/Version-1.0-fe79bb">
 
 # PyRegexp
 A tiny regular expression engine written in Python3
